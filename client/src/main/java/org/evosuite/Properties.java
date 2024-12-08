@@ -388,6 +388,9 @@ public class Properties {
     @Parameter(key = "chop_max_length", group = "Search Algorithm", description = "Chop statements after exception if length has reached maximum")
     public static boolean CHOP_MAX_LENGTH = true;
 
+    @Parameter(key = "multicover_target", group = "Search Algorithm", description = "Minimum number of times to conver a target")
+    public static int MULTICOVER_TARGET = 2;
+
     //----------- DSE, which is a special case of LS ---------------
 
     /**
@@ -1619,11 +1622,12 @@ public class Properties {
     public static boolean EXCLUDE_IBRANCHES_CUT = false;
 
     public enum Strategy {
-        ONEBRANCH, EVOSUITE, RANDOM, RANDOM_FIXED, ENTBUG, MOSUITE, DSE, NOVELTY, MAP_ELITES
+        ONEBRANCH, EVOSUITE, RANDOM, RANDOM_FIXED, ENTBUG, MOSUITE, DSE, NOVELTY, MAP_ELITES,
+        MULTICOVER
     }
 
     @Parameter(key = "strategy", group = "Runtime", description = "Which mode to use")
-    public static Strategy STRATEGY = Strategy.MOSUITE;
+    public static Strategy STRATEGY = Strategy.MULTICOVER;
 
     @Parameter(key = "process_communication_port", group = "Runtime", description = "Port at which the communication with the external process is done")
     public static int PROCESS_COMMUNICATION_PORT = -1;
