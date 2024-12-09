@@ -39,6 +39,7 @@ import org.evosuite.testsuite.RelativeSuiteLengthBloatControl;
 import org.evosuite.testsuite.StatementsPopulationLimit;
 import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.testsuite.TestSuiteFitnessFunction;
+import org.evosuite.testsuite.multicover.MulticoverObserver;
 import org.evosuite.utils.ResourceController;
 
 import java.util.*;
@@ -433,6 +434,11 @@ public abstract class TestSuiteAdapter<A extends GeneticAlgorithm<TestChromosome
             } else if (listener instanceof ProgressMonitor) {
                 super.addListener(listener);
             } else if (listener instanceof ZeroFitnessStoppingCondition) {
+                super.addListener(listener);
+            } else if (listener instanceof MulticoverObserver) {
+                // TODO: Think about this implementation. It could either be a "stopping condition"
+                // in itself -> when enough tests are collected, it can return true?
+                // but this has to be modeled as something else. TODO: Think.
                 super.addListener(listener);
             } else {
                 throw new IllegalArgumentException("cannot adapt listener " + listener);

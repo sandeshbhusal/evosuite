@@ -626,7 +626,12 @@ public enum RuntimeVariable {
      */
     QueryCacheSize,
     QueryCacheCalls,
-    QueryCacheHitRate;
+    QueryCacheHitRate,
+
+    /**
+     * Min Coverage across all goals
+     */
+    MinCoverageCount;
 
     /* -------------------------------------------------- */
 

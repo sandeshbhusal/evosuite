@@ -37,6 +37,7 @@ import org.evosuite.testcase.TestFitnessFunction;
 import org.evosuite.testcase.execution.ExecutionTracer;
 import org.evosuite.testcase.factories.RandomLengthTestFactory;
 import org.evosuite.testsuite.TestSuiteChromosome;
+import org.evosuite.testsuite.multicover.MulticoverObserver;
 import org.evosuite.utils.ArrayUtil;
 import org.evosuite.utils.LoggingUtils;
 import org.evosuite.utils.Randomness;
@@ -89,6 +90,13 @@ public class MOSuiteStrategy extends TestGenerationStrategy {
 
         // if (Properties.SHOW_PROGRESS && !logger.isInfoEnabled())
         algorithm.addListener(progressMonitor); // FIXME progressMonitor may cause
+
+        // TODO: When moving things off of mosuite, make sure to remove this.
+        // if we are tracking multicover count, add the listener to this.
+        if (Properties.MULTICOVER_TARGET > 1) {
+            algorithm.addListener(new MulticoverObserver<>());
+        }
+
         // client hang if EvoSuite is
         // executed with -prefix!
 

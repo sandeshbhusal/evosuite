@@ -256,7 +256,16 @@ public class SearchStatistics implements Listener<ClientStateInformation> {
                 RuntimeVariable.Covered_Goals.toString()
         };
 
-        List<String> variableNames = new ArrayList<>(Arrays.asList(essentials));
+        ArrayList<String> variablesToAdd = new ArrayList<String>(Arrays.asList(essentials));
+
+        // If we are targeting multicover, add the statistics so that we can track
+        // if in the evosuite report.
+        if (Properties.MULTICOVER_TARGET > 1) {
+            variablesToAdd.add(RuntimeVariable.MinCoverageCount.toString());
+        }
+
+        List<String> variableNames = variablesToAdd;
+
 
         /** Fix for DSE as we want to save the output vars in this case */
         if (Properties.isDSEStrategySelected()) {
