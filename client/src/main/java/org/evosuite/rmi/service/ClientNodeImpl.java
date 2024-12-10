@@ -281,6 +281,7 @@ public class ClientNodeImpl<T extends Chromosome<T>>
     public void trackOutputVariable(RuntimeVariable variable, Object value) {
         logger.info("Sending output variable to master process: " + variable + " = " + value);
 
+        System.out.println("Sending output variable to master process: " + variable + " = " + value);
         /*
          * As this code might be called from unsafe blocks, we just put the values
          * on a queue, and have a privileged thread doing the RMI connection to master

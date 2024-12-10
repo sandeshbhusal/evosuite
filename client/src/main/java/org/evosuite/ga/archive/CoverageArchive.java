@@ -20,12 +20,15 @@
 package org.evosuite.ga.archive;
 
 import org.evosuite.Properties;
+import org.evosuite.ga.Chromosome;
 import org.evosuite.ga.FitnessFunction;
+import org.evosuite.ga.thief.ArchiveThief;
 import org.evosuite.runtime.util.AtMostOnceLogger;
 import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
 import org.evosuite.testcase.execution.ExecutionResult;
 import org.evosuite.testsuite.TestSuiteChromosome;
+import org.evosuite.utils.LoggingUtils;
 import org.evosuite.utils.Randomness;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +61,6 @@ public class CoverageArchive extends Archive {
     private final Set<TestFitnessFunction> uncovered = new LinkedHashSet<>();
 
     public static final CoverageArchive instance = new CoverageArchive();
-
 
     /**
      * {@inheritDoc}
@@ -102,9 +104,11 @@ public class CoverageArchive extends Archive {
         }
 
         if (isNewCoveredTarget || isNewSolutionBetterThanCurrent) {
-            // update the archive if a new target has been covered, or if solution covers already existing
-            // covered targets but it has been considered a better solution
-            this.addToArchive(target, solution);
+            if (ArchiveThief.isSat()) {
+                this.addToArchive(target, solution);
+            } else {
+                ArchiveThief.steal(target, solution);
+            }
         }
     }
 
