@@ -264,6 +264,9 @@ public class TestSuiteGeneratorHelper {
                 return new NoveltyStrategy();
             case MAP_ELITES:
                 return new MAPElitesStrategy();
+            case MULTICOVER:
+                // TODO: Change this to have uniform naming across the board?
+                return new BoiseStrategy();
             default:
                 throw new RuntimeException("Unsupported strategy: " + Properties.STRATEGY);
         }
