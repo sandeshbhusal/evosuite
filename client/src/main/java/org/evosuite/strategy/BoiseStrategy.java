@@ -21,7 +21,10 @@ public class BoiseStrategy extends TestGenerationStrategy {
     public TestSuiteChromosome generateTests() {
         // The BoiseGA will maintain its own archive.
         Properties.TEST_ARCHIVE = false;
+        // BoiseGA does its own minimization.
         Properties.MINIMIZE = false;
+        // BoiseGA does not need assertions.
+        Properties.ASSERTIONS = false;
 
         if (!canGenerateTestsForSUT()) {
             LoggingUtils.getEvoLogger().error("* Client cannot generate tests for SUT");
@@ -48,6 +51,6 @@ public class BoiseStrategy extends TestGenerationStrategy {
         geneticAlgorithm.run();
 
         TestSuiteChromosome suite = geneticAlgorithm.generateTestSuite();
-        return new TestSuiteChromosome();
+        return suite;
     }
 }
