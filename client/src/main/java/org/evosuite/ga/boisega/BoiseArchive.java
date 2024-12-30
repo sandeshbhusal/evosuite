@@ -4,6 +4,7 @@ import org.evosuite.Properties;
 import org.evosuite.testcase.TestCaseMinimizer;
 import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
+import org.evosuite.utils.LoggingUtils;
 
 import java.util.*;
 
@@ -54,10 +55,10 @@ public class BoiseArchive {
         ArrayList<TestChromosome> allSolutions = new ArrayList<>();
 
         for (TestFitnessFunction goal: coverageMap.keySet()) {
+            LoggingUtils.getEvoLogger().info("* For goal: " + goal + " have " + coverageMap.get(goal).size() + " solution");
             for (TestChromosome solution: coverageMap.get(goal)) {
                 TestCaseMinimizer minimizer = new TestCaseMinimizer(goal);
                 TestChromosome copy = solution.clone();
-
                 minimizer.minimize(copy);
                 allSolutions.add(copy);
             }

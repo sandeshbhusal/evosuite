@@ -3,6 +3,9 @@ package org.evosuite.ga.boisega;
 import org.evosuite.Properties;
 import org.evosuite.ga.ChromosomeFactory;
 import org.evosuite.ga.ConstructionFailedException;
+import org.evosuite.ga.operators.crossover.CrossOverFunction;
+import org.evosuite.ga.operators.crossover.SinglePointCrossOver;
+import org.evosuite.ga.operators.crossover.UniformCrossOver;
 import org.evosuite.ga.operators.ranking.FastNonDominatedSorting;
 import org.evosuite.ga.operators.ranking.RankingFunction;
 import org.evosuite.ga.operators.selection.SelectionFunction;
@@ -65,7 +68,9 @@ public class BoiseGA {
 
             // By default, fixed single-point crossover function is used.
             try {
-                parent1.crossOver(parent2, Randomness.nextInt(0, parent1.size()), Randomness.nextInt(0, parent2.size()));
+                CrossOverFunction<TestChromosome> crossoverFunction = new UniformCrossOver<>();
+                crossoverFunction.crossOver(parent1, parent2);
+
             } catch (ConstructionFailedException e) {
                 LoggingUtils.getEvoLogger().error("Could not perform crossover on parents.");
                 throw new RuntimeException(e);

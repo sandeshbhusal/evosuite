@@ -35,15 +35,24 @@ public class BoiseStrategy extends TestGenerationStrategy {
 
         BoiseGA geneticAlgorithm = new BoiseGA();
         for (TestFitnessFactory fitnessFactory : getFitnessFactories()) {
-            for (Object fitnessFunction : fitnessFactory.getCoverageGoals()) {
-                // SAFETY: Can cast, because fitnessFactories always generate TestFitnessFunctions.
-                // TODO: Not sure _why_ it's taking coverageGoals as List<Object>. Investigate later.
-                geneticAlgorithm.registerGoal((TestFitnessFunction) fitnessFunction);
-                goalsCount += 1;
+//            for (Object fitnessFunction : fitnessFactory.getCoverageGoals()) {
+//                // SAFETY: Can cast, because fitnessFactories always generate TestFitnessFunctions.
+//                // TODO: Not sure _why_ it's taking coverageGoals as List<Object>. Investigate later.
+//                geneticAlgorithm.registerGoal((TestFitnessFunction) fitnessFunction);
+//                goalsCount += 1;
+//            }
+            List<Object> allGoals = fitnessFactory.getCoverageGoals();
+            try {
+                Object lastGoal = allGoals.get(allGoals.size() - 1);
+                geneticAlgorithm.registerGoal((TestFitnessFunction) lastGoal);
+            } catch(Exception e) {
+                throw new IllegalArgumentException("No goals:: \n " + e.toString());
             }
+
+            goalsCount += 1;
         }
 
-        LoggingUtils.getEvoLogger().error("* Starting to generate tests for the thing.");
+        LoggingUtils.getEvoLogger().error("* Starting to generate tests for the SUT with " + goalsCount + " goals.");
 
         ClientServices.getInstance().getClientNode().trackOutputVariable(RuntimeVariable.Total_Goals, goalsCount * Properties.MULTICOVER_TARGET);
         ClientServices.getInstance().getClientNode().trackOutputVariable(RuntimeVariable.MinCoverageCount, 0);
