@@ -2,6 +2,8 @@ package org.evosuite.strategy;
 
 import org.evosuite.Properties;
 import org.evosuite.coverage.TestFitnessFactory;
+import org.evosuite.coverage.branch.OnlyBranchCoverageFactory;
+import org.evosuite.ga.ChromosomeFactory;
 import org.evosuite.ga.FitnessFunction;
 import org.evosuite.ga.boisega.BoiseArchive;
 import org.evosuite.ga.boisega.BoiseGA;
@@ -9,7 +11,9 @@ import org.evosuite.ga.metaheuristics.GeneticAlgorithm;
 import org.evosuite.ga.operators.ranking.RankBasedPreferenceSorting;
 import org.evosuite.rmi.ClientServices;
 import org.evosuite.statistics.RuntimeVariable;
+import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
+import org.evosuite.testcase.factories.RandomLengthTestFactory;
 import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.testsuite.factories.TestSuiteChromosomeFactory;
 import org.evosuite.utils.LoggingUtils;
@@ -33,23 +37,12 @@ public class BoiseStrategy extends TestGenerationStrategy {
 
         int goalsCount = 0;
 
-        BoiseGA geneticAlgorithm = new BoiseGA();
+        BoiseGA<TestChromosome> geneticAlgorithm = new BoiseGA<>(new RandomLengthTestFactory());
         for (TestFitnessFactory fitnessFactory : getFitnessFactories()) {
-//            for (Object fitnessFunction : fitnessFactory.getCoverageGoals()) {
-//                // SAFETY: Can cast, because fitnessFactories always generate TestFitnessFunctions.
-//                // TODO: Not sure _why_ it's taking coverageGoals as List<Object>. Investigate later.
-//                geneticAlgorithm.registerGoal((TestFitnessFunction) fitnessFunction);
-//                goalsCount += 1;
-//            }
-            List<Object> allGoals = fitnessFactory.getCoverageGoals();
-            try {
-                Object lastGoal = allGoals.get(allGoals.size() - 1);
-                geneticAlgorithm.registerGoal((TestFitnessFunction) lastGoal);
-            } catch(Exception e) {
-                throw new IllegalArgumentException("No goals:: \n " + e.toString());
+            for (TestFitnessFunction fitnessFunction: (List<TestFitnessFunction>) fitnessFactory.getCoverageGoals()) {
+                geneticAlgorithm.addFitnessFunction(fitnessFunction);
+                goalsCount += Properties.MULTICOVER_TARGET;
             }
-
-            goalsCount += 1;
         }
 
         LoggingUtils.getEvoLogger().error("* Starting to generate tests for the SUT with " + goalsCount + " goals.");
@@ -57,9 +50,9 @@ public class BoiseStrategy extends TestGenerationStrategy {
         ClientServices.getInstance().getClientNode().trackOutputVariable(RuntimeVariable.Total_Goals, goalsCount * Properties.MULTICOVER_TARGET);
         ClientServices.getInstance().getClientNode().trackOutputVariable(RuntimeVariable.MinCoverageCount, 0);
 
-        geneticAlgorithm.run();
+        // Start the genetic algorithm
+        geneticAlgorithm.generateSolution();
 
-        TestSuiteChromosome suite = geneticAlgorithm.generateTestSuite();
-        return suite;
+        return geneticAlgorithm.generateTestSuite();
     }
 }

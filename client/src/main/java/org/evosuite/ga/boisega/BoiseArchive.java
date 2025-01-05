@@ -1,69 +1,89 @@
 package org.evosuite.ga.boisega;
 
 import org.evosuite.Properties;
-import org.evosuite.testcase.TestCaseMinimizer;
 import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
+import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.utils.LoggingUtils;
 
 import java.util.*;
 
 public class BoiseArchive {
-    // Coverage map tracks what testcases cover a particular goal.
-    HashMap<TestFitnessFunction, HashSet<TestChromosome>> coverageMap;
-
-    // One testcase can cover multiple goals. We need to track that so that we can
-    // minimize testcases effectively per-goal.
-    HashMap<TestChromosome, HashSet<TestFitnessFunction>> invertedCoverageMap;
+    // Coverage map tracks what test cases cover a particular goal.
+    private final HashMap<TestFitnessFunction, HashSet<TestChromosome>> coverageMap;
 
     public BoiseArchive() {
         coverageMap = new HashMap<>();
-        invertedCoverageMap = new HashMap<>();
     }
 
-    // Register once a solution is found.
+    // Register a solution for a goal if it's not already in the archive.
     public void registerSolutionForGoal(TestFitnessFunction goal, TestChromosome solution) {
         HashSet<TestChromosome> solutions = coverageMap.getOrDefault(goal, new HashSet<>());
-        solutions.add(solution);
-        coverageMap.put(goal, solutions);
 
-        HashSet<TestFitnessFunction> goals = invertedCoverageMap.getOrDefault(solution, new HashSet<>());
-        goals.add(goal);
-        invertedCoverageMap.put(solution, goals);
+        // Check if the solution is already in the archive.
+        if (!isSolutionAlreadyInArchive(goal, solution)) {
+            solutions.add(solution);
+            coverageMap.put(goal, solutions);
+        }
+    }
+
+    // Check if a solution is already in the archive for a given goal.
+    private boolean isSolutionAlreadyInArchive(TestFitnessFunction goal, TestChromosome solution) {
+        HashSet<TestChromosome> solutions = coverageMap.getOrDefault(goal, new HashSet<>());
+        for (TestChromosome existingSolution : solutions) {
+            if (existingSolution.equals(solution)) return true;
+        }
+        return false;
     }
 
     // Register a goal.
-    // Avoid overwriting existing solutions if called again.
     public void registerGoal(TestFitnessFunction goal) {
-        coverageMap.put(goal, coverageMap.getOrDefault(goal, new HashSet<>()));
+        coverageMap.putIfAbsent(goal, new HashSet<>());
     }
 
-    // Check if multicover is reached, i.e. each goal is covered at least
-    // MULTICOVER_TARGET times.
+    // Check if multicover is reached, i.e., each goal is covered at least MULTICOVER_TARGET times.
     public boolean isFull() {
-        int requiredCoverageCount = Properties.MULTICOVER_TARGET;
+        if (coverageMap.isEmpty()) {
+            LoggingUtils.getEvoLogger().info("Coverage map is empty");
+            return false;
+        }
 
+        int requiredCoverageCount = Properties.MULTICOVER_TARGET;
         int achievedCoverageCount = Integer.MAX_VALUE;
-        for (HashSet<TestChromosome> coverageCount: coverageMap.values()) {
+
+        for (HashSet<TestChromosome> coverageCount : coverageMap.values()) {
             achievedCoverageCount = Math.min(achievedCoverageCount, coverageCount.size());
         }
 
+        LoggingUtils.getEvoLogger().info("Achieved min coverage: " + achievedCoverageCount + ", required: " + requiredCoverageCount);
         return achievedCoverageCount >= requiredCoverageCount;
     }
 
-    public List<TestChromosome> getAllTestChromosomes() {
-        ArrayList<TestChromosome> allSolutions = new ArrayList<>();
+    // Check if a specific goal is covered.
+    public boolean isCovered(TestFitnessFunction ff) {
+        return coverageMap.getOrDefault(ff, new HashSet<>()).size() >= Properties.MULTICOVER_TARGET;
+    }
 
-        for (TestFitnessFunction goal: coverageMap.keySet()) {
-            LoggingUtils.getEvoLogger().info("* For goal: " + goal + " have " + coverageMap.get(goal).size() + " solution");
-            for (TestChromosome solution: coverageMap.get(goal)) {
-                TestCaseMinimizer minimizer = new TestCaseMinimizer(goal);
-                TestChromosome copy = solution.clone();
-                minimizer.minimize(copy);
-                allSolutions.add(copy);
+    // Get all covered goals.
+    public Set<TestFitnessFunction> getCoveredGoals() {
+        HashSet<TestFitnessFunction> coveredGoals = new HashSet<>();
+        for (TestFitnessFunction goal : coverageMap.keySet()) {
+            if (isCovered(goal)) {
+                coveredGoals.add(goal);
             }
         }
+        return coveredGoals;
+    }
 
-        return allSolutions;
+    // Return all solutions as a test suite.
+    public TestSuiteChromosome getSuite() {
+        TestSuiteChromosome suite = new TestSuiteChromosome();
+        for (TestFitnessFunction goal : coverageMap.keySet()) {
+            for (TestChromosome solution : coverageMap.get(goal)) {
+                LoggingUtils.getEvoLogger().info("Solution for goal " + goal + ": " + solution.toString());
+                suite.addTestChromosome(solution.clone());
+            }
+        }
+        return suite;
     }
 }
