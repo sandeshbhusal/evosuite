@@ -911,7 +911,6 @@ public class CoverageGoalTestNameGenerationStrategy implements TestNameGeneratio
             return methodName.substring(0, pos);
         else
             return methodName;
-
     }
 
     public Comparator<TestCase> getComparator() {

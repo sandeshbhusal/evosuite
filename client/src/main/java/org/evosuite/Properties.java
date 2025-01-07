@@ -1246,7 +1246,7 @@ public class Properties {
     }
 
     @Parameter(key = "test_naming_strategy", group = "Output", description = "What strategy to use to derive names for tests")
-    public static TestNamingStrategy TEST_NAMING_STRATEGY = TestNamingStrategy.NUMBERED;
+    public static TestNamingStrategy TEST_NAMING_STRATEGY = TestNamingStrategy.COVERAGE;
 
     public enum VariableNamingStrategy {
         TYPE_BASED, HEURISTICS_BASED
