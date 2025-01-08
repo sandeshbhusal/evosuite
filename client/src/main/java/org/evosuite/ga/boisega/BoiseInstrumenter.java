@@ -1,13 +1,81 @@
 package org.evosuite.ga.boisega;
 
 import org.evosuite.instrumentation.coverage.MethodInstrumentation;
+import org.evosuite.utils.LoggingUtils;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
-public class BoiseInstrumenter implements MethodInstrumentation {
+import static org.objectweb.asm.Opcodes.ASM9;
+
+public class BoiseInstrumenter extends ClassVisitor {
+    // This class captures the spans of Vtrace.start() .. Vtrace.capture()
+    // and captures all stack loads within this context. This can be made smarter,
+    // later, but we are only working with integers for now.
+    class SpanCapturingMethodVisitor extends MethodVisitor {
+        public SpanCapturingMethodVisitor(int api) {
+            super(api);
+        }
+
+        public SpanCapturingMethodVisitor(MethodVisitor mv) {
+            super(ASM9, mv);
+            LoggingUtils.getEvoLogger().info("Called capturing method visitor");
+        }
+
+        public List<Span> getCapturedSpans() {
+            return null;
+        }
+    }
+
+    class SpanInstrumentingMethodVisitor extends MethodVisitor {
+
+        public SpanInstrumentingMethodVisitor(int api) {
+            super(api);
+        }
+
+        public SpanInstrumentingMethodVisitor(MethodVisitor mv) {
+            super(ASM9, mv);
+            LoggingUtils.getEvoLogger().info("Called instrumenting method visitor");
+        }
+    }
+
+    private String className;
+    private int api;
+    private List<Span> capturedSpans = new ArrayList<>();
+
+    public BoiseInstrumenter(int api) {
+        super(api);
+        this.api = api;
+    }
+
+    public BoiseInstrumenter(ClassVisitor cv, String cn) {
+        super(ASM9, cv);
+        this.className = cn;
+        LoggingUtils.getEvoLogger().info("*** Called Boise Instrumenter");
+    }
+
+    @Override
+    public MethodVisitor visitMethod(
+            final int access,
+            final String name,
+            final String descriptor,
+            final String signature,
+            final String[] exceptions) {
+        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+
+        SpanCapturingMethodVisitor spanCapture = new SpanCapturingMethodVisitor(mv);
+        this.capturedSpans = spanCapture.getCapturedSpans();
+
+        SpanInstrumentingMethodVisitor spanInstrumenter = new SpanInstrumentingMethodVisitor(mv);
+        return spanInstrumenter;
+    }
+
+
     private static class Span {
         int start;
         int end;
@@ -18,7 +86,6 @@ public class BoiseInstrumenter implements MethodInstrumentation {
         }
     }
 
-    @Override
     public void analyze(ClassLoader classLoader, MethodNode mn, String className, String methodName, int access) {
         // Gather all "static" invocation points, and check what methods they invoke.
         // If the invocation looks like "Vtrace.start()", then store the starting point,
@@ -81,15 +148,5 @@ public class BoiseInstrumenter implements MethodInstrumentation {
         // and the variables that have been loaded onto the stack between those two calls, which
         // happen to be the input parameters to the Vtrace.capture() method.
 
-    }
-
-    @Override
-    public boolean executeOnMainMethod() {
-        return false;
-    }
-
-    @Override
-    public boolean executeOnExcludedMethods() {
-        return false;
     }
 }

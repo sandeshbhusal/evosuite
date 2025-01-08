@@ -96,13 +96,14 @@ public class BoiseArchive {
 
         LoggingUtils.getEvoLogger().info("Have a total of {} solutions in the archive", totalTests);
         TestSuiteChromosome suite = new TestSuiteChromosome();
+        int skipped = 0;
         for (TestFitnessFunction goal : coverageMap.keySet()) {
             Set<TestChromosome> solutions = coverageMap.get(goal);
 
             int count = 0;
             for (TestChromosome solution : solutions) {
                 if (suite.getTestChromosomes().contains(solution)) {
-                    LoggingUtils.getEvoLogger().warn("Skipping duplicate chromosome being added in the suite.");
+                    skipped += 1;
                     continue;
                 } else {
                     suite.addTestChromosome(solution.clone());
@@ -112,6 +113,9 @@ public class BoiseArchive {
                 }
 
             }
+        }
+        if (skipped > 0) {
+            LoggingUtils.getEvoLogger().warn("{} chromosomes were skipped because of duplicates", skipped);
         }
         return suite;
     }

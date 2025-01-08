@@ -23,6 +23,7 @@ import org.evosuite.Properties;
 import org.evosuite.TestGenerationContext;
 import org.evosuite.classpath.ResourceList;
 import org.evosuite.runtime.instrumentation.RuntimeInstrumentation;
+import org.evosuite.utils.LoggingUtils;
 import org.objectweb.asm.ClassReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,6 +137,9 @@ public class InstrumentingClassLoader extends ClassLoader {
     }
 
     private Class<?> instrumentClass(String fullyQualifiedTargetClass) throws ClassNotFoundException {
+        // Even this happens after the tests have been generated. I am looking for something that
+        // instruments classes before generating tests?
+        // LoggingUtils.getEvoLogger().info("Instrumenting class {}", fullyQualifiedTargetClass);
         String className = fullyQualifiedTargetClass.replace('.', '/');
         InputStream is = null;
         try {

@@ -68,14 +68,6 @@ public class BoiseStrategy extends TestGenerationStrategy {
         // Start the genetic algorithm
         geneticAlgorithm.generateSolution();
 
-        // For our peace of mind, we will actually run the test suite at the end.
-        LoggingUtils.getEvoLogger().info("* Running the test suite.");
-        TestSuiteChromosome ts = geneticAlgorithm.generateTestSuite();
-        for (TestChromosome tc : ts.getTestChromosomes()) {
-            LoggingUtils.getEvoLogger().info("* Running test case: " + tc);
-            TestCaseExecutor.getInstance().execute(tc.getTestCase());
-        }
-
         return geneticAlgorithm.generateTestSuite();
     }
 }
