@@ -1,5 +1,7 @@
 package org.evosuite.ga.boisega;
 
+import org.evosuite.utils.LoggingUtils;
+
 import java.util.HashMap;
 
 public class BoiseInstrumentationCache {
@@ -25,7 +27,7 @@ public class BoiseInstrumentationCache {
         return instance;
     }
 
-    public static void captureDataPoint(String className, String methodName, Object ... variables) {
-        System.out.println("Capture called");
+    public static void captureDataPoint(String instrumentationID, Object ... variables) {
+        LoggingUtils.getEvoLogger().info("Capture called for {} with {}", instrumentationID, variables);
     }
 }
