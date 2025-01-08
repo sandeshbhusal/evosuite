@@ -124,6 +124,7 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
 
             // Add useless chromosomes after mutation to the next generation.
             if (!coversSomeGoal) {
+                LoggingUtils.getEvoLogger().info("Useless chromosome mutated and added to the next generation");
                 T copied = solution.clone();
                 copied.mutate();
                 this.notifyMutation(copied);
@@ -140,6 +141,7 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
         // will be too random to do anything.
         // TODO: For now, we will only add one chromosome per goal.
         for (FitnessFunction<T> goal: archive.getRemainingGoals()) {
+            LoggingUtils.getEvoLogger().info("Added one chromosome for goal {} in the population", goal);
             TournamentChromosomeFactory<T> tournamentFactory = new TournamentChromosomeFactory<>(goal, this.chromosomeFactory);
             // Get the best chromosome from the tournament.
             T bestChromosome = tournamentFactory.getChromosome();

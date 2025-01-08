@@ -42,9 +42,6 @@ public class BoiseArchive {
     // Check if a solution is already in the archive for a given goal.
     private boolean isSolutionAlreadyInArchive(TestFitnessFunction goal, TestChromosome solution) {
         HashSet<TestChromosome> solutions = coverageMap.getOrDefault(goal, new HashSet<>());
-//        for (TestChromosome existingSolution : solutions) {
-//            if (existingSolution.equals(solution)) return true;
-//        }
 
         // A simpler way is to only check the text. This is not a proper way. But it is a quick fix.
         for (TestChromosome existingSolution : solutions) {
@@ -107,13 +104,13 @@ public class BoiseArchive {
                 if (suite.getTestChromosomes().contains(solution)) {
                     LoggingUtils.getEvoLogger().warn("Skipping duplicate chromosome being added in the suite.");
                     continue;
+                } else {
+                    suite.addTestChromosome(solution.clone());
+
+                    count += 1;
+                    if (count >= Properties.MULTICOVER_TARGET) break;
                 }
-                suite.addTestChromosome(solution.clone());
 
-                LoggingUtils.getEvoLogger().info("Adding testcase: {}", solution.getTestCase().toCode());
-
-                count += 1;
-                if (count >= Properties.MULTICOVER_TARGET) break;
             }
         }
         return suite;
