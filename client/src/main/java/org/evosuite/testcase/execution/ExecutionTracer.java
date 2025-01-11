@@ -24,6 +24,7 @@ import org.evosuite.coverage.dataflow.Definition;
 import org.evosuite.coverage.dataflow.Use;
 import org.evosuite.instrumentation.testability.BooleanHelper;
 import org.evosuite.seeding.ConstantPoolManager;
+import org.evosuite.utils.LoggingUtils;
 import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

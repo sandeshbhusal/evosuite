@@ -3,8 +3,10 @@ package org.evosuite.ga.boisega;
 import org.evosuite.Properties;
 import org.evosuite.ga.FitnessFunction;
 import org.evosuite.ga.comparators.RankAndCrowdingDistanceComparator;
+import org.evosuite.testcase.TestCase;
 import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
+import org.evosuite.testcase.execution.TestCaseExecutor;
 import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.utils.LoggingUtils;
 
