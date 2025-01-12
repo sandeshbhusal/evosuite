@@ -4,6 +4,7 @@ import org.evosuite.Properties;
 import org.evosuite.coverage.TestFitnessFactory;
 import org.evosuite.ga.FitnessFunction;
 import org.evosuite.ga.boisega.BoiseGA;
+import org.evosuite.ga.boisega.BoiseTestFitnessFactory;
 import org.evosuite.ga.metaheuristics.mosa.structural.MultiCriteriaManager;
 import org.evosuite.graphs.cdg.ControlDependenceGraph;
 import org.evosuite.graphs.cfg.ActualControlFlowGraph;
@@ -37,29 +38,12 @@ public class BoiseStrategy extends TestGenerationStrategy {
             return new TestSuiteChromosome();
         }
 
-        int goalsCount = 0;
-
-        ArrayList<TestFitnessFunction> fitnessFunctions = new ArrayList<>();
-
         BoiseGA<TestChromosome> geneticAlgorithm = new BoiseGA<>(new RandomLengthTestFactory());
-        for (TestFitnessFactory fitnessFactory : getFitnessFactories()) {
-            for (TestFitnessFunction fitnessFunction : (List<TestFitnessFunction>) fitnessFactory.getCoverageGoals()) {
-                if (fitnessFunction.toString().contains("root-Branch")) {
-                    LoggingUtils.getEvoLogger().info("* Skipping fitness function: " + fitnessFunction);
-                    continue;
-                }
+        List<TestFitnessFunction> goals = BoiseTestFitnessFactory.getGoals();
+        geneticAlgorithm.addFitnessFunctions(goals);
 
-                fitnessFunctions.add(fitnessFunction);
-                goalsCount += Properties.MULTICOVER_TARGET;
-            }
-        }
+        int goalsCount = goals.size() * Properties.MULTICOVER_TARGET;
 
-        // We use the same MultiCriteriaManager as DynaMOSA to handle control dependencies in the code.
-        MultiCriteriaManager goalsManager = new MultiCriteriaManager(fitnessFunctions);
-        Set<TestFitnessFunction> uncoveredGoals = goalsManager.getUncoveredGoals();
-        geneticAlgorithm.addFitnessFunctions(uncoveredGoals);
-
-        LoggingUtils.getEvoLogger().info("* Original goals count was {} and with control dependencies removed, we have {} goals.", fitnessFunctions.size(), uncoveredGoals.size());
         LoggingUtils.getEvoLogger().error("* Starting to generate tests for the SUT with " + goalsCount + " goals.");
 
         ClientServices.getInstance().getClientNode().trackOutputVariable(RuntimeVariable.Total_Goals, goalsCount);

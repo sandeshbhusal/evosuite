@@ -12,6 +12,7 @@ import org.evosuite.utils.LoggingUtils;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.MethodInsnNode;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -54,9 +55,13 @@ public class BoiseTestFitnessFactory {
         List<BranchCoverageTestFitness> allBranches = factory.getCoverageGoals();
         LoggingUtils.getEvoLogger().info("Total branches: {}", allBranches.size());
 
+        List<TestFitnessFunction> retained = new ArrayList<>();
+
         for (BranchCoverageTestFitness branch: allBranches) {
             if (goalBranches.contains(branch.getBranch())) {
                 LoggingUtils.getEvoLogger().info("Goal branch: {}", branch.getBranch().getInstruction().getASMNode());
+                retained.add(branch);
+                totalBranchesNeededForInstrumentation += 1;
             } else {
                 LoggingUtils.getEvoLogger().info("Skipping non-required branch fitness: {}", branch.getBranch());
             }
@@ -64,8 +69,6 @@ public class BoiseTestFitnessFactory {
 
 
         LoggingUtils.getEvoLogger().info("Total branches needed for instrumentation: {}", totalBranchesNeededForInstrumentation);
-
-        throw new IllegalArgumentException("hehe");
-//        return null;
+        return retained;
     }
 }

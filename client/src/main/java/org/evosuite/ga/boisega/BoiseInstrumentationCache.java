@@ -27,7 +27,7 @@ public class BoiseInstrumentationCache {
         return instance;
     }
 
-    public static void captureDataPoint(String instrumentationID, Object ... variables) {
-        LoggingUtils.getEvoLogger().info("Capture called for {} with {}", instrumentationID, variables);
+    public static void captureDataPoint(String instrumentationID, int instruumentationIDInt, int ... values) {
+        LoggingUtils.getEvoLogger().info("{}: {}", instrumentationID, instruumentationIDInt);
     }
 }
