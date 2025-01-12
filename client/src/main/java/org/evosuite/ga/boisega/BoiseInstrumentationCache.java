@@ -2,7 +2,9 @@ package org.evosuite.ga.boisega;
 
 import org.evosuite.utils.LoggingUtils;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 public class BoiseInstrumentationCache {
     private static BoiseInstrumentationCache instance = null;
@@ -26,8 +28,11 @@ public class BoiseInstrumentationCache {
 
         return instance;
     }
+    public static void captureDataPoint(String instrumentationID, int ... values) {
+        String valuesString = Arrays.stream(values)
+                .mapToObj(String::valueOf)
+                .collect(Collectors.joining(" "));
 
-    public static void captureDataPoint(String instrumentationID, int instruumentationIDInt, int ... values) {
-        LoggingUtils.getEvoLogger().info("{}: {}", instrumentationID, instruumentationIDInt);
+        LoggingUtils.getEvoLogger().info("{}: {}", instrumentationID, valuesString);
     }
 }
