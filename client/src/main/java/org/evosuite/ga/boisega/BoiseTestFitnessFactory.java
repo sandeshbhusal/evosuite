@@ -1,74 +1,60 @@
 package org.evosuite.ga.boisega;
 
+import org.evosuite.PackageInfo;
 import org.evosuite.TestGenerationContext;
-import org.evosuite.coverage.branch.Branch;
-import org.evosuite.coverage.branch.BranchCoverageFactory;
-import org.evosuite.coverage.branch.BranchCoverageTestFitness;
 import org.evosuite.graphs.cfg.BytecodeInstruction;
 import org.evosuite.graphs.cfg.BytecodeInstructionPool;
-import org.evosuite.graphs.cfg.ControlDependency;
 import org.evosuite.testcase.TestFitnessFunction;
-import org.evosuite.utils.LoggingUtils;
-import org.objectweb.asm.Opcodes;
+import org.evosuite.testcase.execution.ExecutionTracer;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class BoiseTestFitnessFactory {
     public static List<TestFitnessFunction> getGoals() {
-        BytecodeInstructionPool pool = BytecodeInstructionPool.getInstance(TestGenerationContext.getInstance().getClassLoaderForSUT());
-        HashSet<Branch> goalBranches = new HashSet<>();
+        ArrayList<TestFitnessFunction> goals = new ArrayList<>();
+        BytecodeInstructionPool pool = BytecodeInstructionPool
+                .getInstance(
+                        TestGenerationContext
+                                .getInstance()
+                                .getClassLoaderForSUT());
 
-        int totalBranchesNeededForInstrumentation = 0;
+        String currentLDCCode = "";
+        boolean withinScope = false;
 
-        for (BytecodeInstruction instr: pool.getAllInstructions()) {
-            instr.getInstructionType();
-            instr.getLineNumber();
-            String methodName = instr.getMethodName();
-            String className = instr.getClassName();
-            if (instr.getASMNode().getOpcode() == Opcodes.INVOKESTATIC) {
-                MethodInsnNode node = (MethodInsnNode) instr.getASMNode();
-                boolean ourinstrumentationnode = node.name.equals("capture");
-                if (ourinstrumentationnode) {
-                    // Now we have some fun with this node, generate a test fitness target for it, etc.
-                    LoggingUtils.getEvoLogger().info("*** Found a node to instrument! {} has cdg as {}", instr, instr.getCDG());
+        for (BytecodeInstruction instr : pool.getAllInstructions()) {
+            AbstractInsnNode asmNode = instr.getASMNode();
 
-                    // let's gather all branches this instruction is control-dependent on.
-                    Set<ControlDependency> dependentBranches = instr.getControlDependencies();
-                    LoggingUtils.getEvoLogger().info("Dependent branches: {}", dependentBranches.size());
+            if (asmNode instanceof LdcInsnNode) {
+                LdcInsnNode node = (LdcInsnNode) asmNode;
 
-                    for (ControlDependency cd: dependentBranches) {
-                        LoggingUtils.getEvoLogger().info("Branch: {}", cd.getBranch().getInstruction().getASMNode());
-                        goalBranches.add(cd.getBranch());
-                    }
+                if (withinScope) {
+                    currentLDCCode = node.cst.toString();
+                }
+            } else if (asmNode instanceof MethodInsnNode) {
+                MethodInsnNode node = (MethodInsnNode) asmNode;
 
-                    LoggingUtils.getEvoLogger().info("=== End of instrumentation node ===");
+                String instrumentationCacheClassName = PackageInfo.getNameWithSlash(ExecutionTracer.class);
+                String owner = node.owner;
+                String name = node.name;
+
+                if (owner.equals("Vtrace") && name.equals("capture")) {
+                    withinScope = true;
+                    continue;
+                }
+
+                if (withinScope && owner.equals(instrumentationCacheClassName) && name.equals("captureDataPoint")) {
+                    withinScope = false;
+
+                    BoiseFitnessFunction goal = new BoiseFitnessFunction(instr, currentLDCCode);
+                    goals.add(goal);
                 }
             }
         }
 
-        // Get all branches from branch factory, and retain if only in goalBranches.
-        BranchCoverageFactory factory = new BranchCoverageFactory();
-        List<BranchCoverageTestFitness> allBranches = factory.getCoverageGoals();
-        LoggingUtils.getEvoLogger().info("Total branches: {}", allBranches.size());
-
-        List<TestFitnessFunction> retained = new ArrayList<>();
-
-        for (BranchCoverageTestFitness branch: allBranches) {
-            if (goalBranches.contains(branch.getBranch())) {
-                LoggingUtils.getEvoLogger().info("Goal branch: {}", branch.getBranch().getInstruction().getASMNode());
-                retained.add(branch);
-                totalBranchesNeededForInstrumentation += 1;
-            } else {
-                LoggingUtils.getEvoLogger().info("Skipping non-required branch fitness: {}", branch.getBranch());
-            }
-        }
-
-
-        LoggingUtils.getEvoLogger().info("Total branches needed for instrumentation: {}", totalBranchesNeededForInstrumentation);
-        return retained;
+        return goals;
     }
 }

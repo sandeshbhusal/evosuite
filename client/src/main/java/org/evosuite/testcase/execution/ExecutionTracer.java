@@ -344,6 +344,16 @@ public class ExecutionTracer {
     }
 
     /**
+     * Called by the instrumented code whenever an instrumentation point is hit.
+     *
+     * @param instrumentationId
+     * @param vector
+     */
+    public static void captureDataPoint (String instrumentationId, int[] vector) {
+        getExecutionTracer().trace.instrumentationPassed(instrumentationId, vector);
+    }
+
+    /**
      * Called by instrumented code whenever a method is left
      *
      * @param classname  a {@link java.lang.String} object.

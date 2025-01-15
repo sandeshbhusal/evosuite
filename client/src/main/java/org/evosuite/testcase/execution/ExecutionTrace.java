@@ -352,6 +352,16 @@ public interface ExecutionTrace {
     void exitMethod(String classname, String methodname);
 
     /**
+     * Called when instrumentation method is executed
+     *
+     * @param instrumentationId
+     * @param vector
+     */
+    void instrumentationPassed(String instrumentationId, int[] vector);
+
+    List<List<Integer>> getHitInstrumentationData(String instrumentationID);
+
+    /**
      * Finish all method calls. This is called when a method is not exited
      * regularly, but through an exception
      */

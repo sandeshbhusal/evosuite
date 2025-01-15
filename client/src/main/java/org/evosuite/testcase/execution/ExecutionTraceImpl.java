@@ -218,6 +218,8 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
     public Map<String, Map<CallContext, Integer>> coveredMethodContext = Collections
             .synchronizedMap(new HashMap<>());
 
+    public Map<String, List<List<Integer>>> instrumentationData = Collections.synchronizedMap(new HashMap<>());
+
     // number of seen Definitions and uses for indexing purposes
     private int duCounter = 0;
     // The last explicitly thrown exception is kept here
@@ -813,6 +815,28 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
             }
             //}
         }
+    }
+
+    @Override
+    public void instrumentationPassed(String instrumentationId, int[] vector) {
+        if (instrumentationData == null) {
+            instrumentationData = new HashMap<>();
+        }
+        if (!instrumentationData.containsKey(instrumentationId)) {
+            instrumentationData.put(instrumentationId, new ArrayList<>());
+        }
+
+        List<Integer> list = new ArrayList<>();
+        for (int i : vector) {
+            list.add(i);
+        }
+
+        instrumentationData.get(instrumentationId).add(list);
+    }
+
+    @Override
+    public List<List<Integer>> getHitInstrumentationData(String instrumentationID) {
+        return instrumentationData.getOrDefault(instrumentationID, new ArrayList<>());
     }
 
     /**

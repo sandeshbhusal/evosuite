@@ -27,7 +27,7 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
     @Override
     public void addFitnessFunction(FitnessFunction<T> ff) {
         super.addFitnessFunction(ff);
-        this.archive.registerGoal((TestFitnessFunction) ff);
+        this.archive.registerGoal((BoiseFitnessFunction) ff);
     }
 
     @Override
@@ -102,6 +102,10 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
         ArrayList<T> nextGeneration = new ArrayList<>();
 
         int coveringChromsomesCount = 0;
+
+        // I really need to think about this:
+        // For now, skip all chromosomes that do not cover anything. Then,
+        // we add chromosomes that _might_ cover something.
         for (T solution: combinedPopulation) {
             boolean coversSomeGoal = false;
 
@@ -110,27 +114,19 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
                 if (fitness == 0.0) {
                     // goal is covered by solution
                     coversSomeGoal = true;
-                    archive.registerGoal((TestFitnessFunction) goal);
+                    archive.registerGoal((BoiseFitnessFunction) goal);
 
                     Properties.MINIMIZE = true;
                     TestCaseMinimizer minimizer = new TestCaseMinimizer((TestFitnessFunction) goal);
                     minimizer.minimize((TestChromosome) solution);
                     Properties.MINIMIZE = false;
 
-                    archive.registerSolutionForGoal((TestFitnessFunction) goal, (TestChromosome) solution);
+                    archive.registerSolutionForGoal((BoiseFitnessFunction) goal, (TestChromosome) solution);
                     // one solution may cover multiple goals, but minimization should make it more specific.
+                    // Let one chromosome only cover one goal.
+                    coveringChromsomesCount += 1;
+                    break;
                 }
-            }
-
-            // Add useless chromosomes after mutation to the next generation.
-            if (!coversSomeGoal) {
-                LoggingUtils.getEvoLogger().info("Useless chromosome mutated and added to the next generation");
-                T copied = solution.clone();
-                copied.mutate();
-                this.notifyMutation(copied);
-                nextGeneration.add(copied);
-            } else {
-                coveringChromsomesCount++;
             }
         }
 
@@ -156,6 +152,11 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
                 nextGeneration.add(chromosomeFactory.getChromosome());
                 required--;
             }
+        }
+
+        // Truncate the generation if it exceeds population size.
+        if (nextGeneration.size() > Properties.POPULATION) {
+            nextGeneration = new ArrayList<>(nextGeneration.subList(0, Properties.POPULATION));
         }
 
         return nextGeneration;

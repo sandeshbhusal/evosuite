@@ -6,6 +6,8 @@ import org.evosuite.ga.comparators.RankAndCrowdingDistanceComparator;
 import org.evosuite.testcase.TestCase;
 import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
+import org.evosuite.testcase.execution.ExecutionResult;
+import org.evosuite.testcase.execution.ExecutionTrace;
 import org.evosuite.testcase.execution.TestCaseExecutor;
 import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.utils.LoggingUtils;
@@ -13,18 +15,49 @@ import org.evosuite.utils.LoggingUtils;
 import java.util.*;
 
 public class BoiseArchive {
+    private static class Vector {
+        public double[] values;
+
+        public Vector(double[] values) {
+            this.values = values;
+        }
+
+        public double distance(Vector other) {
+            double sum = 0;
+            for (int i = 0; i < values.length; i++) {
+                sum += Math.pow(values[i] - other.values[i], 2);
+            }
+            return Math.sqrt(sum);
+        }
+
+        public boolean equals(Vector other) {
+            for (int i = 0; i < values.length; i++) {
+                if (values[i] != other.values[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public String toString() {
+            return Arrays.toString(values);
+        }
+    }
+
+    private final HashMap<String, List<Vector>> instrumentationCache = new HashMap<>();
+
     // Coverage map tracks what test cases cover a particular goal.
-    private HashMap<TestFitnessFunction, HashSet<TestChromosome>> coverageMap;
+    private HashMap<BoiseFitnessFunction, HashSet<TestChromosome>> coverageMap;
 
     // Keep track of what we have to cover
-    private HashSet<TestFitnessFunction> remainingGoals = new HashSet<>();
+    private HashSet<BoiseFitnessFunction> remainingGoals = new HashSet<>();
 
     public BoiseArchive() {
         coverageMap = new HashMap<>();
     }
 
     // Register a solution for a goal if it's not already in the archive.
-    public void registerSolutionForGoal(TestFitnessFunction goal, TestChromosome solution) {
+    public void registerSolutionForGoal(BoiseFitnessFunction goal, TestChromosome solution) {
         HashSet<TestChromosome> solutions = coverageMap.getOrDefault(goal, new HashSet<>());
 
         // If this solution covers other goals, then remove them from the cached results.
@@ -32,51 +65,69 @@ public class BoiseArchive {
         solution.clearMutationHistory();
         goal.getFitness(solution);
 
+        ExecutionResult result = solution.getLastExecutionResult();
+        ExecutionTrace trace = result.getTrace();
+
+        List<List<Integer>> dataCapturedInThisTrace = trace.getHitInstrumentationData(goal.id);
+
         // Check if the solution is already in the archive.
-        if (!isSolutionAlreadyInArchive(goal, solution)) {
+        if (!isSolutionAlreadyInArchive(goal, solution, dataCapturedInThisTrace)) {
             solutions.add(solution);
-            coverageMap.put(goal, solutions);
+            List<Vector> capturedData = instrumentationCache.getOrDefault(goal.id, new ArrayList<>());
+            for (List<Integer> data : dataCapturedInThisTrace) {
+                capturedData.add(new Vector(data.stream().mapToDouble(i -> i).toArray()));
+            }
+            instrumentationCache.put(goal.id, capturedData);
 
             updateGoalCoverage(goal);
         }
+
     }
 
     // Check if a solution is already in the archive for a given goal.
-    private boolean isSolutionAlreadyInArchive(TestFitnessFunction goal, TestChromosome solution) {
-        HashSet<TestChromosome> solutions = coverageMap.getOrDefault(goal, new HashSet<>());
+    private boolean isSolutionAlreadyInArchive(
+            BoiseFitnessFunction goal,
+            TestChromosome solution,
+            List<List<Integer>> capturedData) {
 
-        // A simpler way is to only check the text. This is not a proper way. But it is a quick fix.
-        for (TestChromosome existingSolution : solutions) {
-            if (existingSolution.getTestCase().toCode().equals(solution.getTestCase().toCode())) return true;
+        // We do not care a whole lot about the tests in the archive; just the data.
+        // Just compute the distance between the captured data and the data in the archive.
+        List<Vector> availableData = instrumentationCache.getOrDefault(goal.id, new ArrayList<>());
+        for (Vector data : availableData) {
+            for (List<Integer> captured : capturedData) {
+                Vector capturedVector = new Vector(captured.stream().mapToDouble(i -> i).toArray());
+                if (data.equals(capturedVector)) {
+                    return true;
+                }
+            }
         }
+
         return false;
     }
 
     // Register a goal.
-    public void registerGoal(TestFitnessFunction goal) {
+    public void registerGoal(BoiseFitnessFunction goal) {
         coverageMap.putIfAbsent(goal, new HashSet<>());
         remainingGoals.add(goal);
     }
 
     // Check if a specific goal is covered.
-    public boolean isCovered(TestFitnessFunction ff) {
-        return coverageMap.getOrDefault(ff, new HashSet<>()).size() >= Properties.MULTICOVER_TARGET;
+    public boolean isCovered(BoiseFitnessFunction ff) {
+        return instrumentationCache.getOrDefault(ff.id, new ArrayList<>()).size() >= Properties.MULTICOVER_TARGET;
+//        return coverageMap.getOrDefault(ff, new HashSet<>()).size() >= Properties.MULTICOVER_TARGET;
     }
 
-    public void updateGoalCoverage(TestFitnessFunction goal) {
-        LoggingUtils.getEvoLogger().info("Have a new solution for goal {}, with total = {}", goal, coverageMap.get(goal).size());
+    public void updateGoalCoverage(BoiseFitnessFunction goal) {
         if (isCovered(goal)) {
             LoggingUtils.getEvoLogger().info("Goal {} is covered", goal);
             remainingGoals.remove(goal);
-        } else {
-            LoggingUtils.getEvoLogger().info("Goal {} is not covered, has {} solutions in archive", goal, coverageMap.get(goal).size());
         }
     }
 
     // Get all covered goals.
-    public Set<TestFitnessFunction> getCoveredGoals() {
-        HashSet<TestFitnessFunction> coveredGoals = new HashSet<>();
-        for (TestFitnessFunction goal : coverageMap.keySet()) {
+    public Set<BoiseFitnessFunction> getCoveredGoals() {
+        HashSet<BoiseFitnessFunction> coveredGoals = new HashSet<>();
+        for (BoiseFitnessFunction goal : coverageMap.keySet()) {
             if (isCovered(goal)) {
                 coveredGoals.add(goal);
             }
@@ -116,9 +167,21 @@ public class BoiseArchive {
 
             }
         }
+
         if (skipped > 0) {
             LoggingUtils.getEvoLogger().warn("{} chromosomes were skipped because of duplicates", skipped);
         }
+
+        // Print out the solutions too for each goal + instrumentation point.
+        LoggingUtils.getEvoLogger().info("--------------------");
+        for (String goal : instrumentationCache.keySet()) {
+            LoggingUtils.getEvoLogger().info("Goal: {}", goal);
+            for (Vector data : instrumentationCache.get(goal)) {
+                LoggingUtils.getEvoLogger().info("Data: {}", data);
+            }
+            LoggingUtils.getEvoLogger().info("--------------------");
+        }
+
         return suite;
     }
 }
