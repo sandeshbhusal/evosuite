@@ -231,7 +231,7 @@ public class ClientNodeImpl<T extends Chromosome<T>>
         try {
             masterNode.evosuite_informChangeOfStateInClient(clientRmiIdentifier, state, information);
         } catch (RemoteException e) {
-            logger.error("Cannot inform master of change of state", e);
+            logger.error("Cannot inform master of change of state @234", e);
         }
 
         if (this.state.equals(ClientState.DONE)) {
@@ -250,7 +250,7 @@ public class ClientNodeImpl<T extends Chromosome<T>>
         try {
             masterNode.evosuite_collectStatistics(clientRmiIdentifier, individual);
         } catch (RemoteException e) {
-            logger.error("Cannot inform master of change of state", e);
+            logger.error("Cannot inform master of change of state @253", e);
             throw new IllegalStateException(e);
         }
     }
@@ -262,7 +262,7 @@ public class ClientNodeImpl<T extends Chromosome<T>>
         try {
             masterNode.evosuite_flushStatisticsForClassChange(clientRmiIdentifier);
         } catch (RemoteException e) {
-            logger.error("Cannot inform master of change of state", e);
+            logger.error("Cannot inform master of change of state @265", e);
         }
     }
 
@@ -273,7 +273,7 @@ public class ClientNodeImpl<T extends Chromosome<T>>
         try {
             masterNode.evosuite_updateProperty(clientRmiIdentifier, propertyName, value);
         } catch (RemoteException | IllegalArgumentException | IllegalAccessException | NoSuchParameterException e) {
-            logger.error("Cannot inform master of change of state", e);
+            logger.error("Cannot inform master of change of state @276", e);
         }
     }
 

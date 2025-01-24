@@ -1,6 +1,5 @@
 package org.evosuite.ga.boisega;
 
-import org.evosuite.coverage.branch.Branch;
 import org.evosuite.coverage.branch.BranchCoverageGoal;
 import org.evosuite.coverage.branch.BranchCoverageTestFitness;
 import org.evosuite.graphs.cfg.BytecodeInstruction;
@@ -30,28 +29,20 @@ public class BoiseFitnessFunction extends TestFitnessFunction {
 
         if (wasReached) {
             return 0.0;
-        } else {
-            double mostFitness = Double.MIN_VALUE;
-            Set<ControlDependency> deps = node.getControlDependencies();
-
-            for (ControlDependency dep : deps) {
-                Branch branch = dep.getBranch();
-
-                BranchCoverageGoal false_goal = new BranchCoverageGoal(branch, false, node.getClassName(), node.getMethodName());
-                BranchCoverageGoal true_goal = new BranchCoverageGoal(branch, true, node.getClassName(), node.getMethodName());
-
-                BranchCoverageTestFitness true_ff = new BranchCoverageTestFitness(true_goal);
-                BranchCoverageTestFitness false_ff = new BranchCoverageTestFitness(false_goal);
-
-                double true_fitness = true_ff.getFitness(individual, result);
-                double false_fitness = false_ff.getFitness(individual, result);
-
-                double branch_fitness = Math.min(true_fitness, false_fitness);
-                mostFitness = Math.min(branch_fitness, mostFitness);
-            }
-
-            return mostFitness;
         }
+
+        Set<ControlDependency> dependencies = node.getControlDependencies();
+
+        double minCdFitness = 1.0;
+
+        for (ControlDependency dep: dependencies) {
+            BranchCoverageGoal goal = new BranchCoverageGoal(dep, node.getClassName(), node.getMethodName());
+            BranchCoverageTestFitness cdGoal = new BranchCoverageTestFitness(goal);
+
+            minCdFitness = Math.min(minCdFitness, cdGoal.getFitness(individual, result));
+        }
+
+        return minCdFitness;
     }
 
     public int compareTo(TestFitnessFunction other) {
