@@ -6,6 +6,8 @@ import org.evosuite.ga.ChromosomeFactory;
 import org.evosuite.ga.FitnessFunction;
 import org.evosuite.ga.TournamentChromosomeFactory;
 import org.evosuite.ga.metaheuristics.GeneticAlgorithm;
+import org.evosuite.ga.operators.ranking.RankBasedPreferenceSorting;
+import org.evosuite.ga.operators.ranking.RankingFunction;
 import org.evosuite.testcase.TestCaseMinimizer;
 import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
@@ -83,13 +85,7 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
                 notifyMutation(offspring2);
             }
 
-            // Evaluate
-            for (FitnessFunction<T> ff : this.getFitnessFunctions()) {
-                ff.getFitness(offspring1);
-                notifyEvaluation(offspring1);
-                ff.getFitness(offspring2);
-                notifyEvaluation(offspring2);
-            }
+            // Evaluation left to the subfront selection mechanism.
 
             offspringPopulation.add(offspring1);
             offspringPopulation.add(offspring2);
@@ -101,62 +97,103 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
     private List<T> subFrontSelection(List<T> combinedPopulation) {
         ArrayList<T> nextGeneration = new ArrayList<>();
 
-        int coveringChromsomesCount = 0;
+        // Get the remaining goals from the archive.
+        Set<FitnessFunction> remainingGoals = archive.getRemainingGoals();
+        HashMap<FitnessFunction, List<T>> coveringSolutions = new HashMap<>();
+        ArrayList<T> nonCoveringSolutions = new ArrayList<>();
 
-        // I really need to think about this:
-        // For now, skip all chromosomes that do not cover anything. Then,
-        // we add chromosomes that _might_ cover something.
+        // See what chromosomes cover the goals; rank them by their fitness scores first.
+        // if there is a chromosome that covers a goal entirely, put it in coveringSolutions,
+        // else, put it in nonCoveringSolutions to make it a part of the next generation.
+
         for (T solution: combinedPopulation) {
             boolean coversSomeGoal = false;
 
-            for (FitnessFunction goal: archive.getRemainingGoals()) {
-                double fitness = solution.getFitness(goal);
+            for (FitnessFunction goal: remainingGoals) {
+                double fitness = goal.getFitness(solution);
+                assert (!goal.isMaximizationFunction()) : "Boise GA works with minimization functions only for now.";
+
                 if (fitness == 0.0) {
-                    // goal is covered by solution
+                    // This covers some goal G.
                     coversSomeGoal = true;
-                    archive.registerGoal((BoiseFitnessFunction) goal);
 
-                    Properties.MINIMIZE = true;
+                    // One solution may cover multiple goals. We allow it to.
+                    // However, in order to make our calculations easier, we will clamp
+                    // a "copy" of the solution to one goal, minimizing it so that we
+                    // see less side-effects.
                     TestCaseMinimizer minimizer = new TestCaseMinimizer((TestFitnessFunction) goal);
-                    minimizer.minimize((TestChromosome) solution);
-                    Properties.MINIMIZE = false;
+                    T clonedSolution = solution.clone();
+                    minimizer.minimize((TestChromosome) clonedSolution);
 
-                    archive.registerSolutionForGoal((BoiseFitnessFunction) goal, (TestChromosome) solution);
-                    // one solution may cover multiple goals, but minimization should make it more specific.
-                    // Let one chromosome only cover one goal.
-                    coveringChromsomesCount += 1;
+                    List<T> foundSolutions = coveringSolutions.getOrDefault(goal, new ArrayList<>());
+                    foundSolutions.add(clonedSolution);
+                    coveringSolutions.put(goal, foundSolutions);
+                }
+            }
+
+            if (!coversSomeGoal) {
+                nonCoveringSolutions.add(solution);
+            }
+        }
+
+        // We only take the "best" from each goal, so that in each iteration, we have only one solution.
+        // This is _very_ suboptimal, but I want to check if this produces diverse data.
+        for (FitnessFunction goal: coveringSolutions.keySet()) {
+            List<T> solutions = coveringSolutions.get(goal);
+            BoiseSubFrontSelection subFrontSelection = new BoiseSubFrontSelection((BoiseFitnessFunction) goal, (List<TestChromosome>) solutions);
+            T bestSolution = (T) subFrontSelection.getBestChromosome();
+
+            // Register the best solution to the archive, move the rest to the next generation.
+            archive.registerSolutionForGoal((BoiseFitnessFunction) goal, (TestChromosome) bestSolution);
+
+            solutions.remove(bestSolution);
+
+            // TODO: Think about this.
+            nonCoveringSolutions.addAll(solutions);
+        }
+
+        // Now that we have the remaining solutions, we rank them, according to the internal and
+        // cluster diversity (see BoiseSubFrontSelection).
+        if (nonCoveringSolutions.size() > Properties.POPULATION) {
+            // We have a lot of chromosomes that do not cover any goal.
+            // We mutate _all_ of them, and add them to the next generation,
+            // after doing a subfront selection (normal; dynamosa).
+
+            RankingFunction rankingFunction = new RankBasedPreferenceSorting();
+            rankingFunction.computeRankingAssignment(nonCoveringSolutions, remainingGoals);
+
+            int remaining = Properties.POPULATION;
+            int currentSubFront = 0;
+            while (remaining > 0) {
+                List<T> subfront = rankingFunction.getSubfront(currentSubFront);
+                for (T solution: subfront) {
+                    if (remaining == 0) {
+                        break;
+                    }
+
+                    nextGeneration.add(solution);
+                    remaining--;
+                }
+            }
+        } else {
+            int requiredRemaining = Properties.POPULATION - nonCoveringSolutions.size();
+
+            // Add all non-covering solutions to the next generation.
+            nextGeneration.addAll(nonCoveringSolutions);
+
+            // Next, generate some new chromosomes to fill the remaining slots.
+            for (FitnessFunction goal: remainingGoals) {
+                // Randomly generate a new chromosome with tournament selection and add it to the next generation.
+                TournamentChromosomeFactory<T> factory = new TournamentChromosomeFactory<T>(goal, chromosomeFactory);
+                T newChromosome = factory.getChromosome();
+
+                nextGeneration.add(newChromosome);
+                requiredRemaining -= 1;
+
+                if (requiredRemaining == 0) {
                     break;
                 }
             }
-        }
-
-        LoggingUtils.getEvoLogger().info("Covering chromosomes count: {}", coveringChromsomesCount);
-
-        // Add some random chromosomes to fill up the population.
-        // But we do a tournament selection with remaining goals, otherwise, our population
-        // will be too random to do anything.
-        // TODO: For now, we will only add one chromosome per goal.
-        for (FitnessFunction<T> goal: archive.getRemainingGoals()) {
-            LoggingUtils.getEvoLogger().info("Added one chromosome for goal {} in the population", goal);
-            TournamentChromosomeFactory<T> tournamentFactory = new TournamentChromosomeFactory<>(goal, this.chromosomeFactory);
-            // Get the best chromosome from the tournament.
-            T bestChromosome = tournamentFactory.getChromosome();
-            nextGeneration.add(bestChromosome);
-        }
-
-        if (nextGeneration.size() < Properties.POPULATION) {
-            int required = Properties.POPULATION - nextGeneration.size();
-            LoggingUtils.getEvoLogger().info("Filling up population with {} random chromosomes because population size is {}",
-                    required, nextGeneration.size());
-            while (required > 0) {
-                nextGeneration.add(chromosomeFactory.getChromosome());
-                required--;
-            }
-        }
-
-        // Truncate the generation if it exceeds population size.
-        if (nextGeneration.size() > Properties.POPULATION) {
-            nextGeneration = new ArrayList<>(nextGeneration.subList(0, Properties.POPULATION));
         }
 
         return nextGeneration;

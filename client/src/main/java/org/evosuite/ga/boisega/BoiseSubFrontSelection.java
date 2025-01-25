@@ -3,6 +3,8 @@ package org.evosuite.ga.boisega;
 import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
 import org.evosuite.testcase.execution.ExecutionResult;
+import org.evosuite.testcase.execution.ExecutionTrace;
+import org.evosuite.utils.LoggingUtils;
 
 import java.util.List;
 
@@ -17,10 +19,10 @@ public class BoiseSubFrontSelection {
 
     public TestChromosome getBestChromosome() {
         // Capture the chromosome with the best internal diversity
-        double bestDiversity = Double.MIN_VALUE;
+        double bestDiversity = -1.0;
         TestChromosome bestSolution = null;
 
-        for (TestChromosome solution: solutions) {
+        for (TestChromosome solution : solutions) {
             double diversity = getInternalDiversity(solution);
             if (diversity > bestDiversity) {
                 bestDiversity = diversity;
@@ -28,13 +30,63 @@ public class BoiseSubFrontSelection {
             }
         }
 
+        // If the bestDiversity is 0.0 (i.e. all values in the vector are the same), then
+        // we look for diversity within the cluster (list of solutions).
+        if (bestDiversity == 0.0) {
+            LoggingUtils.getEvoLogger().info("All vector values are the same for {}. Looking for diversity within the cluster.", goal.getId());
+
+            BoiseArchive.Vector centroid = getCentroid();
+            double bestDistance = Double.MIN_VALUE;
+
+            for (TestChromosome solution : solutions) {
+                ExecutionTrace trace = solution.getLastExecutionResult().getTrace();
+                List<List<Integer>> vectors = trace.getHitInstrumentationData(goal.getId());
+
+                for (List<Integer> vector : vectors) {
+                    BoiseArchive.Vector currentVector = new BoiseArchive.Vector(vector.stream().mapToDouble(i -> i).toArray());
+                    double distance = centroid.distance(currentVector);
+                    if (distance > bestDistance ) {
+                        bestDistance = distance;
+                        bestSolution = solution;
+                    }
+                }
+            }
+        }
+
         return bestSolution;
     }
 
     public BoiseArchive.Vector getCentroid() {
-        String instrumentationId = goal.getId();
+        if (solutions.isEmpty()) {
+            return new BoiseArchive.Vector(new double[0]);
+        }
 
-        return null;
+        // Grab the first vector, to find the length of the resultant vector.
+        // Ehh. This is a super bad way to do this, but it's 4 am :)
+        List<Integer> firstVector = null;
+        try {
+            firstVector = solutions.get(0).getLastExecutionResult().getTrace().getHitInstrumentationData(goal.getId()).get(0);
+        } catch (Exception e) {
+            return new BoiseArchive.Vector(new double[0]);
+        }
+
+        double[] centroid = new double[firstVector.size()];
+
+        for (TestChromosome solution : solutions) {
+            ExecutionResult result = solution.getLastExecutionResult();
+            List<List<Integer>> vectors = result.getTrace().getHitInstrumentationData(goal.getId());
+            for (List<Integer> vector : vectors) {
+                for (int i = 0; i < vector.size(); i++) {
+                    centroid[i] += vector.get(i);
+                }
+            }
+        }
+
+        for (int i = 0; i < centroid.length; i++) {
+            centroid[i] /= solutions.size();
+        }
+
+        return new BoiseArchive.Vector(centroid);
     }
 
     // Grab the "internal diversity" of chromosome, i.e.
@@ -44,7 +96,7 @@ public class BoiseSubFrontSelection {
         double internalDiversity = 0.0;
         ExecutionResult result = solution.getLastExecutionResult();
         List<List<Integer>> vectors = result.getTrace().getHitInstrumentationData(goal.getId());
-        for (List<Integer> vector: vectors) {
+        for (List<Integer> vector : vectors) {
             double sum = 0.0;
 
             for (int i = 0; i < vector.size(); i++) {
