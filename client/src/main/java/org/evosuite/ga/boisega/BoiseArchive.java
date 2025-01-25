@@ -15,7 +15,7 @@ import org.evosuite.utils.LoggingUtils;
 import java.util.*;
 
 public class BoiseArchive {
-    private static class Vector {
+    public static class Vector {
         public double[] values;
 
         public Vector(double[] values) {
@@ -68,16 +68,16 @@ public class BoiseArchive {
         ExecutionResult result = solution.getLastExecutionResult();
         ExecutionTrace trace = result.getTrace();
 
-        List<List<Integer>> dataCapturedInThisTrace = trace.getHitInstrumentationData(goal.id);
+        List<List<Integer>> dataCapturedInThisTrace = trace.getHitInstrumentationData(goal.getId());
 
         // Check if the solution is already in the archive.
         if (!isSolutionAlreadyInArchive(goal, solution, dataCapturedInThisTrace)) {
             solutions.add(solution);
-            List<Vector> capturedData = instrumentationCache.getOrDefault(goal.id, new ArrayList<>());
+            List<Vector> capturedData = instrumentationCache.getOrDefault(goal.getId(), new ArrayList<>());
             for (List<Integer> data : dataCapturedInThisTrace) {
                 capturedData.add(new Vector(data.stream().mapToDouble(i -> i).toArray()));
             }
-            instrumentationCache.put(goal.id, capturedData);
+            instrumentationCache.put(goal.getId(), capturedData);
 
             updateGoalCoverage(goal);
         }
@@ -92,7 +92,7 @@ public class BoiseArchive {
 
         // We do not care a whole lot about the tests in the archive; just the data.
         // Just compute the distance between the captured data and the data in the archive.
-        List<Vector> availableData = instrumentationCache.getOrDefault(goal.id, new ArrayList<>());
+        List<Vector> availableData = instrumentationCache.getOrDefault(goal.getId(), new ArrayList<>());
         for (Vector data : availableData) {
             for (List<Integer> captured : capturedData) {
                 Vector capturedVector = new Vector(captured.stream().mapToDouble(i -> i).toArray());
@@ -113,7 +113,7 @@ public class BoiseArchive {
 
     // Check if a specific goal is covered.
     public boolean isCovered(BoiseFitnessFunction ff) {
-        return instrumentationCache.getOrDefault(ff.id, new ArrayList<>()).size() >= Properties.MULTICOVER_TARGET;
+        return instrumentationCache.getOrDefault(ff.getId(), new ArrayList<>()).size() >= Properties.MULTICOVER_TARGET;
 //        return coverageMap.getOrDefault(ff, new HashSet<>()).size() >= Properties.MULTICOVER_TARGET;
     }
 

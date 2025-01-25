@@ -9,17 +9,34 @@ import org.evosuite.testcase.TestFitnessFunction;
 import org.evosuite.testcase.execution.ExecutionResult;
 import org.evosuite.testcase.execution.ExecutionTrace;
 
+import java.io.Serializable;
 import java.util.Set;
 
 public class BoiseFitnessFunction extends TestFitnessFunction {
-    private static final long serialVersionUID = 5222436175279169399L;
+    private static final long serialVersionUID = 631096774725721L;
 
-    public String id;
-    public BytecodeInstruction node;
+    private transient String id;
+    private transient BytecodeInstruction node;
+
+    private final String targetClassName;
+    private final String targetMethodName;
+    private final int targetLineNumber;
 
     public BoiseFitnessFunction(BytecodeInstruction node, String instrumentationId) {
         this.node = node;
         this.id = instrumentationId;
+
+        this.targetClassName = node.getClassName();
+        this.targetMethodName = node.getMethodName();
+        this.targetLineNumber = node.getLineNumber();
+    }
+
+    public String getId() {
+        return this.id;
+    }
+
+    public BytecodeInstruction getNode() {
+        return this.node;
     }
 
     @Override
@@ -61,9 +78,9 @@ public class BoiseFitnessFunction extends TestFitnessFunction {
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + node.getClassName().hashCode();
-        result = prime * result + node.getMethodName().hashCode();
-        result = prime * result + node.getLineNumber();
+        result = prime * result + targetClassName.hashCode();
+        result = prime * result + targetMethodName.hashCode();
+        result = prime * result + targetLineNumber;
         return result;
     }
 
@@ -75,5 +92,10 @@ public class BoiseFitnessFunction extends TestFitnessFunction {
     @Override
     public String getTargetMethod() {
         return node.getMethodName();
+    }
+
+    @Override
+    public String toString() {
+        return "Goal [" + node.getClassName() + "::" + node.getMethodName() + " @line: " + node.getLineNumber() + "]";
     }
 }
