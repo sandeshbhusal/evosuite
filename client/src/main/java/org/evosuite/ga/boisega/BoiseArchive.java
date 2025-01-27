@@ -12,6 +12,8 @@ import org.evosuite.testcase.execution.TestCaseExecutor;
 import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.utils.LoggingUtils;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.util.*;
 
 public class BoiseArchive {
@@ -57,13 +59,14 @@ public class BoiseArchive {
     }
 
     // Register a solution for a goal if it's not already in the archive.
-    public void registerSolutionForGoal(BoiseFitnessFunction goal, TestChromosome solution) {
-        HashSet<TestChromosome> solutions = coverageMap.getOrDefault(goal, new HashSet<>());
+    public boolean registerSolutionForGoal(BoiseFitnessFunction goal, TestChromosome solution) {
+        // Sometimes, if no solutions have been generated, this can return null.
+        // TODO: Fix this in the future.
+        if (solution == null) {
+            return false;
+        }
 
-        // If this solution covers other goals, then remove them from the cached results.
-        solution.clearCachedResults();
-        solution.clearMutationHistory();
-        goal.getFitness(solution);
+        HashSet<TestChromosome> solutions = coverageMap.getOrDefault(goal, new HashSet<>());
 
         ExecutionResult result = solution.getLastExecutionResult();
         ExecutionTrace trace = result.getTrace();
@@ -73,6 +76,7 @@ public class BoiseArchive {
         // Check if the solution is already in the archive.
         if (!isSolutionAlreadyInArchive(goal, solution, dataCapturedInThisTrace)) {
             solutions.add(solution);
+            coverageMap.put(goal, solutions);
             List<Vector> capturedData = instrumentationCache.getOrDefault(goal.getId(), new ArrayList<>());
             for (List<Integer> data : dataCapturedInThisTrace) {
                 capturedData.add(new Vector(data.stream().mapToDouble(i -> i).toArray()));
@@ -80,8 +84,10 @@ public class BoiseArchive {
             instrumentationCache.put(goal.getId(), capturedData);
 
             updateGoalCoverage(goal);
+            return true;
+        } else {
+            return false;
         }
-
     }
 
     // Check if a solution is already in the archive for a given goal.
@@ -94,11 +100,17 @@ public class BoiseArchive {
         // Just compute the distance between the captured data and the data in the archive.
         List<Vector> availableData = instrumentationCache.getOrDefault(goal.getId(), new ArrayList<>());
         for (Vector data : availableData) {
+            int equalCount = 0;
             for (List<Integer> captured : capturedData) {
                 Vector capturedVector = new Vector(captured.stream().mapToDouble(i -> i).toArray());
                 if (data.equals(capturedVector)) {
-                    return true;
+                    equalCount += 1;
                 }
+            }
+
+            // ALL data points are equal.
+            if (equalCount == capturedData.size()) {
+                return true;
             }
         }
 
@@ -175,6 +187,18 @@ public class BoiseArchive {
         // Print out the solutions too for each goal + instrumentation point.
         LoggingUtils.getEvoLogger().info("--------------------");
         for (String goal : instrumentationCache.keySet()) {
+            String filename = goal + ".csv";
+            File dataFile = new File(filename);
+            try {
+                FileWriter writer = new FileWriter(dataFile);
+                for (Vector data : instrumentationCache.get(goal)) {
+                    writer.write(data.toString() + "\n");
+                }
+                writer.close();
+            } catch (Exception e) {
+                LoggingUtils.getEvoLogger().error("Could not write data to file: {}", filename + "because of: " + e.getMessage());
+            }
+
             LoggingUtils.getEvoLogger().info("Goal: {}", goal);
             for (Vector data : instrumentationCache.get(goal)) {
                 LoggingUtils.getEvoLogger().info("Data: {}", data);

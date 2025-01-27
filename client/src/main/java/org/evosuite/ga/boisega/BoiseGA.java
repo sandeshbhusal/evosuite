@@ -85,8 +85,6 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
                 notifyMutation(offspring2);
             }
 
-            // Evaluation left to the subfront selection mechanism.
-
             offspringPopulation.add(offspring1);
             offspringPopulation.add(offspring2);
         }
@@ -139,14 +137,32 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
         // We only take the "best" from each goal, so that in each iteration, we have only one solution.
         // This is _very_ suboptimal, but I want to check if this produces diverse data.
         for (FitnessFunction goal: coveringSolutions.keySet()) {
-            List<T> solutions = coveringSolutions.get(goal);
+            List<T> solutions = coveringSolutions.getOrDefault(goal, new ArrayList<>());
+            if (solutions.isEmpty()) {
+                // nothing covers this goal yet.
+                continue;
+            }
+
             BoiseSubFrontSelection subFrontSelection = new BoiseSubFrontSelection((BoiseFitnessFunction) goal, (List<TestChromosome>) solutions);
             T bestSolution = (T) subFrontSelection.getBestChromosome();
 
-            // Register the best solution to the archive, move the rest to the next generation.
-            archive.registerSolutionForGoal((BoiseFitnessFunction) goal, (TestChromosome) bestSolution);
+            if (bestSolution == null) {
+                // No best solution found.
+                continue;
+            }
 
-            solutions.remove(bestSolution);
+            // Register the best solution to the archive, move the rest to the next generation.
+            boolean registered = archive.registerSolutionForGoal((BoiseFitnessFunction) goal, (TestChromosome) bestSolution);
+
+            // Check if this is a new solution. If so, steal it, otherwise, keep it in the population.
+            if (registered) {
+                // Solution was not already in archive.
+                solutions.remove(bestSolution);
+            } else {
+                // Mutate and add this solution to the next generation
+                bestSolution.mutate();
+                nonCoveringSolutions.add(bestSolution);
+            }
 
             // TODO: Think about this.
             nonCoveringSolutions.addAll(solutions);

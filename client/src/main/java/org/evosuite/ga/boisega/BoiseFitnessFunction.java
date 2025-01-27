@@ -15,8 +15,8 @@ import java.util.Set;
 public class BoiseFitnessFunction extends TestFitnessFunction {
     private static final long serialVersionUID = 631096774725721L;
 
-    private transient String id;
-    private transient BytecodeInstruction node;
+    private final transient String id;
+    private final transient BytecodeInstruction node;
 
     private final String targetClassName;
     private final String targetMethodName;

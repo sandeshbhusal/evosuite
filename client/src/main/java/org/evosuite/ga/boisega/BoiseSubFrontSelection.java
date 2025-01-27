@@ -23,8 +23,12 @@ public class BoiseSubFrontSelection {
         TestChromosome bestSolution = null;
 
         for (TestChromosome solution : solutions) {
+            solution.clearCachedResults();
+            solution.clearMutationHistory();
+            goal.getFitness(solution);
+
             double diversity = getInternalDiversity(solution);
-            if (diversity > bestDiversity) {
+            if (diversity >= bestDiversity) {
                 bestDiversity = diversity;
                 bestSolution = solution;
             }
@@ -33,10 +37,10 @@ public class BoiseSubFrontSelection {
         // If the bestDiversity is 0.0 (i.e. all values in the vector are the same), then
         // we look for diversity within the cluster (list of solutions).
         if (bestDiversity == 0.0) {
-            LoggingUtils.getEvoLogger().info("All vector values are the same for {}. Looking for diversity within the cluster.", goal.getId());
+            LoggingUtils.getEvoLogger().info("All vector values are the same for {}: {}. Looking for diversity within the cluster.", goal.getId(), getVectorsForSolution(bestSolution));
 
             BoiseArchive.Vector centroid = getCentroid();
-            double bestDistance = Double.MIN_VALUE;
+            double bestDistance = -1.0;
 
             for (TestChromosome solution : solutions) {
                 ExecutionTrace trace = solution.getLastExecutionResult().getTrace();
@@ -45,7 +49,7 @@ public class BoiseSubFrontSelection {
                 for (List<Integer> vector : vectors) {
                     BoiseArchive.Vector currentVector = new BoiseArchive.Vector(vector.stream().mapToDouble(i -> i).toArray());
                     double distance = centroid.distance(currentVector);
-                    if (distance > bestDistance ) {
+                    if (distance > bestDistance) {
                         bestDistance = distance;
                         bestSolution = solution;
                     }
@@ -87,6 +91,10 @@ public class BoiseSubFrontSelection {
         }
 
         return new BoiseArchive.Vector(centroid);
+    }
+
+    public List<List<Integer>> getVectorsForSolution(TestChromosome solution) {
+        return solution.getLastExecutionResult().getTrace().getHitInstrumentationData(goal.getId());
     }
 
     // Grab the "internal diversity" of chromosome, i.e.

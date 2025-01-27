@@ -86,6 +86,13 @@ public abstract class JUnitAnalyzer {
      */
     public static void removeTestsThatDoNotCompile(List<TestCase> tests) {
 
+        // Check and make sure that junit class can be found on the classpath.
+        try {
+            Class.forName("org.junit.Test");
+        } catch (ClassNotFoundException e) {
+            throw new IllegalArgumentException("JUnit classes not found on classpath. Please make sure that JUnit is on the classpath.");
+        }
+
         logger.info("Going to execute: removeTestsThatDoNotCompile");
 
         if (tests == null || tests.isEmpty()) { //nothing to do
