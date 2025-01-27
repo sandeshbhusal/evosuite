@@ -2,13 +2,10 @@ package org.evosuite.ga.boisega;
 
 import org.evosuite.Properties;
 import org.evosuite.ga.FitnessFunction;
-import org.evosuite.ga.comparators.RankAndCrowdingDistanceComparator;
-import org.evosuite.testcase.TestCase;
 import org.evosuite.testcase.TestChromosome;
 import org.evosuite.testcase.TestFitnessFunction;
 import org.evosuite.testcase.execution.ExecutionResult;
 import org.evosuite.testcase.execution.ExecutionTrace;
-import org.evosuite.testcase.execution.TestCaseExecutor;
 import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.utils.LoggingUtils;
 
@@ -18,9 +15,9 @@ import java.util.*;
 
 public class BoiseArchive {
     public static class Vector {
-        public double[] values;
+        public int[] values;
 
-        public Vector(double[] values) {
+        public Vector(int[] values) {
             this.values = values;
         }
 
@@ -32,13 +29,19 @@ public class BoiseArchive {
             return Math.sqrt(sum);
         }
 
-        public boolean equals(Vector other) {
-            for (int i = 0; i < values.length; i++) {
-                if (values[i] != other.values[i]) {
-                    return false;
-                }
-            }
-            return true;
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null || getClass() != obj.getClass())
+                return false;
+            Vector other = (Vector) obj;
+            return Arrays.equals(values, other.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(values);
         }
 
         public String toString() {
@@ -58,10 +61,7 @@ public class BoiseArchive {
         coverageMap = new HashMap<>();
     }
 
-    // Register a solution for a goal if it's not already in the archive.
     public boolean registerSolutionForGoal(BoiseFitnessFunction goal, TestChromosome solution) {
-        // Sometimes, if no solutions have been generated, this can return null.
-        // TODO: Fix this in the future.
         if (solution == null) {
             return false;
         }
@@ -73,14 +73,27 @@ public class BoiseArchive {
 
         List<List<Integer>> dataCapturedInThisTrace = trace.getHitInstrumentationData(goal.getId());
 
+        // Remove duplicates from captured data
+        Set<Vector> uniqueCapturedData = new HashSet<>();
+        for (List<Integer> data : dataCapturedInThisTrace) {
+            uniqueCapturedData.add(new Vector(data.stream().mapToInt(i -> i).toArray()));
+        }
+
         // Check if the solution is already in the archive.
-        if (!isSolutionAlreadyInArchive(goal, solution, dataCapturedInThisTrace)) {
+        List<List<Integer>> capturedDataList = new ArrayList<>();
+        for (Vector vector : uniqueCapturedData) {
+            List<Integer> dataList = new ArrayList<>();
+            for (int value : vector.values) {
+                dataList.add(value);
+            }
+            capturedDataList.add(dataList);
+        }
+
+        if (!isSolutionAlreadyInArchive(goal, capturedDataList)) {
             solutions.add(solution);
             coverageMap.put(goal, solutions);
             List<Vector> capturedData = instrumentationCache.getOrDefault(goal.getId(), new ArrayList<>());
-            for (List<Integer> data : dataCapturedInThisTrace) {
-                capturedData.add(new Vector(data.stream().mapToDouble(i -> i).toArray()));
-            }
+            capturedData.addAll(uniqueCapturedData);
             instrumentationCache.put(goal.getId(), capturedData);
 
             updateGoalCoverage(goal);
@@ -90,31 +103,20 @@ public class BoiseArchive {
         }
     }
 
-    // Check if a solution is already in the archive for a given goal.
     private boolean isSolutionAlreadyInArchive(
             BoiseFitnessFunction goal,
-            TestChromosome solution,
             List<List<Integer>> capturedData) {
 
-        // We do not care a whole lot about the tests in the archive; just the data.
-        // Just compute the distance between the captured data and the data in the archive.
         List<Vector> availableData = instrumentationCache.getOrDefault(goal.getId(), new ArrayList<>());
-        for (Vector data : availableData) {
-            int equalCount = 0;
-            for (List<Integer> captured : capturedData) {
-                Vector capturedVector = new Vector(captured.stream().mapToDouble(i -> i).toArray());
+        for (List<Integer> captured : capturedData) {
+            Vector capturedVector = new Vector(captured.stream().mapToInt(i -> i).toArray());
+            for (Vector data : availableData) {
                 if (data.equals(capturedVector)) {
-                    equalCount += 1;
+                    return true; // Found a duplicate
                 }
             }
-
-            // ALL data points are equal.
-            if (equalCount == capturedData.size()) {
-                return true;
-            }
         }
-
-        return false;
+        return false; // No duplicates found
     }
 
     // Register a goal.
@@ -126,7 +128,8 @@ public class BoiseArchive {
     // Check if a specific goal is covered.
     public boolean isCovered(BoiseFitnessFunction ff) {
         return instrumentationCache.getOrDefault(ff.getId(), new ArrayList<>()).size() >= Properties.MULTICOVER_TARGET;
-//        return coverageMap.getOrDefault(ff, new HashSet<>()).size() >= Properties.MULTICOVER_TARGET;
+        // return coverageMap.getOrDefault(ff, new HashSet<>()).size() >=
+        // Properties.MULTICOVER_TARGET;
     }
 
     public void updateGoalCoverage(BoiseFitnessFunction goal) {
@@ -174,7 +177,8 @@ public class BoiseArchive {
                     suite.addTestChromosome(solution.clone());
 
                     count += 1;
-                    if (count >= Properties.MULTICOVER_TARGET) break;
+                    if (count >= Properties.MULTICOVER_TARGET)
+                        break;
                 }
 
             }
@@ -196,7 +200,8 @@ public class BoiseArchive {
                 }
                 writer.close();
             } catch (Exception e) {
-                LoggingUtils.getEvoLogger().error("Could not write data to file: {}", filename + "because of: " + e.getMessage());
+                LoggingUtils.getEvoLogger().error("Could not write data to file: {}",
+                        filename + "because of: " + e.getMessage());
             }
 
             LoggingUtils.getEvoLogger().info("Goal: {}", goal);

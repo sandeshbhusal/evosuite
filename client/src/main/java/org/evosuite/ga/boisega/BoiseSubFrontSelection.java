@@ -47,7 +47,7 @@ public class BoiseSubFrontSelection {
                 List<List<Integer>> vectors = trace.getHitInstrumentationData(goal.getId());
 
                 for (List<Integer> vector : vectors) {
-                    BoiseArchive.Vector currentVector = new BoiseArchive.Vector(vector.stream().mapToDouble(i -> i).toArray());
+                    BoiseArchive.Vector currentVector = new BoiseArchive.Vector(vector.stream().mapToInt(i -> i).toArray());
                     double distance = centroid.distance(currentVector);
                     if (distance > bestDistance) {
                         bestDistance = distance;
@@ -62,7 +62,7 @@ public class BoiseSubFrontSelection {
 
     public BoiseArchive.Vector getCentroid() {
         if (solutions.isEmpty()) {
-            return new BoiseArchive.Vector(new double[0]);
+            return new BoiseArchive.Vector(new int[0]);
         }
 
         // Grab the first vector, to find the length of the resultant vector.
@@ -71,10 +71,10 @@ public class BoiseSubFrontSelection {
         try {
             firstVector = solutions.get(0).getLastExecutionResult().getTrace().getHitInstrumentationData(goal.getId()).get(0);
         } catch (Exception e) {
-            return new BoiseArchive.Vector(new double[0]);
+            return new BoiseArchive.Vector(new int[0]);
         }
 
-        double[] centroid = new double[firstVector.size()];
+        int[] centroid = new int[firstVector.size()];
 
         for (TestChromosome solution : solutions) {
             ExecutionResult result = solution.getLastExecutionResult();

@@ -64,7 +64,6 @@ public class BoiseInstrumenter extends ClassVisitor {
                     }
 
                     String instrumentationCacheClassName = PackageInfo.getNameWithSlash(ExecutionTracer.class);
-                    LoggingUtils.getEvoLogger().info("{}.{}", descriptor, opcode);
                     mv.visitMethodInsn(opcode, instrumentationCacheClassName, "captureDataPoint", "(Ljava/lang/String;[I)V", false);
 
                     // Reset everything.
@@ -103,7 +102,6 @@ public class BoiseInstrumenter extends ClassVisitor {
 
         public SpanInstrumentingMethodVisitor(MethodVisitor mv) {
             super(ASM9, mv);
-            LoggingUtils.getEvoLogger().info("Called instrumenting method visitor");
         }
     }
 

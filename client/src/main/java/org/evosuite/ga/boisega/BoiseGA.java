@@ -100,14 +100,17 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
         HashMap<FitnessFunction, List<T>> coveringSolutions = new HashMap<>();
         ArrayList<T> nonCoveringSolutions = new ArrayList<>();
 
-        // See what chromosomes cover the goals; rank them by their fitness scores first.
-        // if there is a chromosome that covers a goal entirely, put it in coveringSolutions,
-        // else, put it in nonCoveringSolutions to make it a part of the next generation.
+        // See what chromosomes cover the goals; rank them by their fitness scores
+        // first.
+        // if there is a chromosome that covers a goal entirely, put it in
+        // coveringSolutions,
+        // else, put it in nonCoveringSolutions to make it a part of the next
+        // generation.
 
-        for (T solution: combinedPopulation) {
+        for (T solution : combinedPopulation) {
             boolean coversSomeGoal = false;
 
-            for (FitnessFunction goal: remainingGoals) {
+            for (FitnessFunction goal : remainingGoals) {
                 double fitness = goal.getFitness(solution);
                 assert (!goal.isMaximizationFunction()) : "Boise GA works with minimization functions only for now.";
 
@@ -134,41 +137,37 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
             }
         }
 
-        // We only take the "best" from each goal, so that in each iteration, we have only one solution.
+        // We only take the "best" from each goal, so that in each iteration, we have
+        // only one solution.
         // This is _very_ suboptimal, but I want to check if this produces diverse data.
-        for (FitnessFunction goal: coveringSolutions.keySet()) {
+        for (FitnessFunction goal : coveringSolutions.keySet()) {
             List<T> solutions = coveringSolutions.getOrDefault(goal, new ArrayList<>());
             if (solutions.isEmpty()) {
                 // nothing covers this goal yet.
                 continue;
             }
 
-            BoiseSubFrontSelection subFrontSelection = new BoiseSubFrontSelection((BoiseFitnessFunction) goal, (List<TestChromosome>) solutions);
+            BoiseSubFrontSelection subFrontSelection = new BoiseSubFrontSelection((BoiseFitnessFunction) goal,
+                    (List<TestChromosome>) solutions);
             T bestSolution = (T) subFrontSelection.getBestChromosome();
 
-            if (bestSolution == null) {
-                // No best solution found.
-                continue;
-            }
-
-            // Register the best solution to the archive, move the rest to the next generation.
-            boolean registered = archive.registerSolutionForGoal((BoiseFitnessFunction) goal, (TestChromosome) bestSolution);
-
-            // Check if this is a new solution. If so, steal it, otherwise, keep it in the population.
-            if (registered) {
-                // Solution was not already in archive.
+            boolean registered = false;
+            while (!solutions.isEmpty() && !registered && bestSolution != null) {
+                // Register the best solution to the archive, move the rest to the next
+                // generation.
+                registered = archive.registerSolutionForGoal((BoiseFitnessFunction) goal,
+                        (TestChromosome) bestSolution);
                 solutions.remove(bestSolution);
-            } else {
-                // Mutate and add this solution to the next generation
-                bestSolution.mutate();
-                nonCoveringSolutions.add(bestSolution);
+
+                // Get the next-best solution, in case this failed to register.
+                bestSolution = (T) subFrontSelection.getBestChromosome();
             }
 
-            // TODO: Think about this.
             nonCoveringSolutions.addAll(solutions);
         }
 
-        // Now that we have the remaining solutions, we rank them, according to the internal and
+        // Now that we have the remaining solutions, we rank them, according to the
+        // internal and
         // cluster diversity (see BoiseSubFrontSelection).
         if (nonCoveringSolutions.size() > Properties.POPULATION) {
             // We have a lot of chromosomes that do not cover any goal.
@@ -182,7 +181,7 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
             int currentSubFront = 0;
             while (remaining > 0) {
                 List<T> subfront = rankingFunction.getSubfront(currentSubFront);
-                for (T solution: subfront) {
+                for (T solution : subfront) {
                     if (remaining == 0) {
                         break;
                     }
@@ -198,8 +197,9 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
             nextGeneration.addAll(nonCoveringSolutions);
 
             // Next, generate some new chromosomes to fill the remaining slots.
-            for (FitnessFunction goal: remainingGoals) {
-                // Randomly generate a new chromosome with tournament selection and add it to the next generation.
+            for (FitnessFunction goal : remainingGoals) {
+                // Randomly generate a new chromosome with tournament selection and add it to
+                // the next generation.
                 TournamentChromosomeFactory<T> factory = new TournamentChromosomeFactory<T>(goal, chromosomeFactory);
                 T newChromosome = factory.getChromosome();
 
@@ -217,18 +217,21 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
 
     @Override
     public void generateSolution() {
+        int timeout = Properties.GLOBAL_TIMEOUT;
+        long startTime = System.currentTimeMillis();
+
         initializePopulation();
         LoggingUtils.getEvoLogger().info("Total goals count {}", this.fitnessFunctions.size());
-        while (!archive.getRemainingGoals().isEmpty()) {
+        while (!archive.getRemainingGoals().isEmpty() && currentIteration < 1000) {
             LoggingUtils.getEvoLogger().info("-------------------------------------------------------------------");
             LoggingUtils.getEvoLogger().info("Iteration: {}", currentIteration);
             LoggingUtils.getEvoLogger().info("Population size: {}", population.size());
-            LoggingUtils.getEvoLogger().info("Remaining goals count: {}", archive.getRemainingGoals().size());
+            LoggingUtils.getEvoLogger().info("Remaining goals count: {} as: {}", archive.getRemainingGoals().size(),
+                    archive.getRemainingGoals());
             this.evolve();
             this.currentIteration++;
             LoggingUtils.getEvoLogger().info("Covered goals: {}", archive.getCoveredGoals().size());
             this.notifyIteration();
-            LoggingUtils.getEvoLogger().info("-------------------------------------------------------------------");
         }
 
         LoggingUtils.getEvoLogger().info("* GA finished in {} iterations", currentIteration);
