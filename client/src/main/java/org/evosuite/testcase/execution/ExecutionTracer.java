@@ -22,9 +22,9 @@ package org.evosuite.testcase.execution;
 import org.evosuite.coverage.dataflow.DefUsePool;
 import org.evosuite.coverage.dataflow.Definition;
 import org.evosuite.coverage.dataflow.Use;
+import org.evosuite.ga.boisega.Vector;
 import org.evosuite.instrumentation.testability.BooleanHelper;
 import org.evosuite.seeding.ConstantPoolManager;
-import org.evosuite.utils.LoggingUtils;
 import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -350,7 +350,8 @@ public class ExecutionTracer {
      * @param vector
      */
     public static void captureDataPoint (String instrumentationId, int[] vector) {
-        getExecutionTracer().trace.instrumentationPassed(instrumentationId, vector);
+        Vector vector_ = new Vector(vector);
+        getExecutionTracer().trace.instrumentationPassed(instrumentationId, vector_);
     }
 
     /**

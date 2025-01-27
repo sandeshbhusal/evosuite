@@ -9,7 +9,6 @@ import org.evosuite.testcase.TestFitnessFunction;
 import org.evosuite.testcase.execution.ExecutionResult;
 import org.evosuite.testcase.execution.ExecutionTrace;
 
-import java.io.Serializable;
 import java.util.Set;
 
 public class BoiseFitnessFunction extends TestFitnessFunction {
@@ -63,7 +62,13 @@ public class BoiseFitnessFunction extends TestFitnessFunction {
     }
 
     public int compareTo(TestFitnessFunction other) {
-        return 0;
+        if (other instanceof BoiseFitnessFunction) {
+            // Check if this is a control dependency? of the other one.
+            BoiseFitnessFunction otherff = (BoiseFitnessFunction) other;
+            return otherff.node.compareTo(node);
+        } else {
+            return 0;
+        }
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.evosuite.testcase.execution;
 
 import org.evosuite.Properties;
+import org.evosuite.ga.boisega.Vector;
 import org.evosuite.Properties.Criterion;
 import org.evosuite.TestGenerationContext;
 import org.evosuite.coverage.branch.Branch;
@@ -218,7 +219,7 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
     public Map<String, Map<CallContext, Integer>> coveredMethodContext = Collections
             .synchronizedMap(new HashMap<>());
 
-    public Map<String, Set<List<Integer>>> instrumentationData = Collections.synchronizedMap(new HashMap<>());
+    public Map<String, Set<Vector>> instrumentationData = Collections.synchronizedMap(new HashMap<>());
 
     // number of seen Definitions and uses for indexing purposes
     private int duCounter = 0;
@@ -818,24 +819,12 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
     }
 
     @Override
-    public void instrumentationPassed(String instrumentationId, int[] vector) {
-        if (instrumentationData == null) {
-            instrumentationData = new HashMap<>();
-        }
-        if (!instrumentationData.containsKey(instrumentationId)) {
-            instrumentationData.put(instrumentationId, new HashSet<>());
-        }
-
-        List<Integer> list = new ArrayList<>();
-        for (int i : vector) {
-            list.add(i);
-        }
-
-        instrumentationData.get(instrumentationId).add(list);
+    public void instrumentationPassed(String instrumentationId, Vector vector) {
+        instrumentationData.get(instrumentationId).add(vector);
     }
 
     @Override
-    public Set<List<Integer>> getHitInstrumentationData(String instrumentationID) {
+    public Set<Vector> getHitInstrumentationData(String instrumentationID) {
         return instrumentationData.getOrDefault(instrumentationID, new HashSet<>());
     }
 
@@ -1929,5 +1918,10 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
     @Override
     public List<String> getInitializedClasses() {
         return this.initializedClasses;
+    }
+
+    @Override
+    public Set<String> getHitInstrumentationPoints() {
+        return new HashSet<String>(this.instrumentationData.keySet());
     }
 }
