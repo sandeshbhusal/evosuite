@@ -26,12 +26,17 @@ public class BoiseArchive {
             this.values = values;
         }
 
-        public double distance(Vector other) {
-            double sum = 0;
+        public Vector(List<Integer> values) {
+            this.values = values.stream().mapToInt(i -> i).toArray();
+        }
+
+        public int distance(Vector other) {
+            int sum = 0;
             for (int i = 0; i < values.length; i++) {
                 sum += Math.pow(values[i] - other.values[i], 2);
             }
-            return Math.sqrt(sum);
+
+            return sum;
         }
 
         @Override
@@ -54,17 +59,14 @@ public class BoiseArchive {
         }
     }
 
+    // Holds the captured data for each goal.
     private final HashMap<String, Set<Vector>> instrumentationCache = new HashMap<>();
 
     // Coverage map tracks what test cases cover a particular goal.
-    private HashMap<BoiseFitnessFunction, HashSet<TestChromosome>> coverageMap;
+    private final HashMap<BoiseFitnessFunction, HashSet<TestChromosome>> coverageMap = new HashMap<>();
 
     // Keep track of what we have to cover
     private HashSet<BoiseFitnessFunction> remainingGoals = new HashSet<>();
-
-    public BoiseArchive() {
-        coverageMap = new HashMap<>();
-    }
 
     public boolean registerSolutionForGoal(BoiseFitnessFunction goal, TestChromosome solution) {
         if (solution == null) {
@@ -81,20 +83,10 @@ public class BoiseArchive {
         // Remove duplicates from captured data
         Set<Vector> uniqueCapturedData = new HashSet<>();
         for (List<Integer> data : dataCapturedInThisTrace) {
-            uniqueCapturedData.add(new Vector(data.stream().mapToInt(i -> i).toArray()));
+            uniqueCapturedData.add(new Vector(data));
         }
 
-        // Check if the solution is already in the archive.
-        Set<List<Integer>> capturedDataList = new HashSet<>();
-        for (Vector vector : uniqueCapturedData) {
-            List<Integer> dataList = new ArrayList<>();
-            for (int value : vector.values) {
-                dataList.add(value);
-            }
-            capturedDataList.add(dataList);
-        }
-
-        if (!isSolutionAlreadyInArchive(goal, capturedDataList)) {
+        if (!isSolutionAlreadyInArchive(goal, uniqueCapturedData)) {
             solutions.add(solution);
             coverageMap.put(goal, solutions);
             Set<Vector> capturedData = instrumentationCache.getOrDefault(goal.getId(), new HashSet<>());
@@ -110,18 +102,11 @@ public class BoiseArchive {
 
     private boolean isSolutionAlreadyInArchive(
             BoiseFitnessFunction goal,
-            Set<List<Integer>> capturedData) {
+            Set<Vector> capturedData) {
 
         Set<Vector> availableData = instrumentationCache.getOrDefault(goal.getId(), new HashSet<>());
-        for (List<Integer> captured : capturedData) {
-            Vector capturedVector = new Vector(captured.stream().mapToInt(i -> i).toArray());
-            for (Vector data : availableData) {
-                if (data.equals(capturedVector)) {
-                    return true; // Found a duplicate
-                }
-            }
-        }
-        return false; // No duplicates found
+        availableData.retainAll(capturedData);
+        return !availableData.isEmpty();
     }
 
     // Register a goal.

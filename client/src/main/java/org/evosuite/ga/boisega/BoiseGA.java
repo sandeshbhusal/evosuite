@@ -151,12 +151,18 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
                     (List<TestChromosome>) solutions);
             T bestSolution = (T) subFrontSelection.getBestChromosome();
 
-            boolean registered = false;
-            while (!solutions.isEmpty() && !registered && bestSolution != null) {
+            int registeredCount = 4;
+            while (!solutions.isEmpty() && registeredCount > 0 && bestSolution != null) {
                 // Register the best solution to the archive, move the rest to the next
                 // generation.
-                registered = archive.registerSolutionForGoal((BoiseFitnessFunction) goal,
+                boolean registered = archive.registerSolutionForGoal((BoiseFitnessFunction) goal,
                         (TestChromosome) bestSolution);
+                
+                // If the solution was registered, we remove it from the list of solutions.
+                if (registered) {
+                    registeredCount -= 1;
+                }
+                
                 solutions.remove(bestSolution);
 
                 // Get the next-best solution, in case this failed to register.

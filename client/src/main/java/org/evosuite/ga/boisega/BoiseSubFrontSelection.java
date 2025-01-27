@@ -34,29 +34,32 @@ public class BoiseSubFrontSelection {
             }
         }
 
+        // If internal diversity is not 0, then return immediately.
+        // This is to save on computation.
+        if (bestDiversity != 0.0) {
+            return bestSolution;
+        }
+
         // If the bestDiversity is 0.0 (i.e. all values in the vector are the same),
-        // then
-        // we look for diversity within the cluster (list of solutions).
-        if (bestDiversity == 0.0) {
-            LoggingUtils.getEvoLogger().info(
-                    "All vector values are the same for {}: {}. Looking for diversity within the cluster.",
-                    goal.getId(), getVectorsForSolution(bestSolution));
+        // then we look for diversity within the cluster (list of solutions).
+        LoggingUtils.getEvoLogger().info(
+                "All vector values are the same for {}: {}. Looking for diversity within the cluster.",
+                goal.getId(), getVectorsForSolution(bestSolution));
 
-            BoiseArchive.Vector centroid = getCentroid();
-            double bestDistance = -1.0;
+        BoiseArchive.Vector centroid = getCentroid();
+        double bestDistance = -1.0;
 
-            for (TestChromosome solution : solutions) {
-                ExecutionTrace trace = solution.getLastExecutionResult().getTrace();
-                Set<List<Integer>> vectors = trace.getHitInstrumentationData(goal.getId());
+        for (TestChromosome solution : solutions) {
+            ExecutionTrace trace = solution.getLastExecutionResult().getTrace();
+            Set<List<Integer>> vectors = trace.getHitInstrumentationData(goal.getId());
 
-                for (List<Integer> vector : vectors) {
-                    BoiseArchive.Vector currentVector = new BoiseArchive.Vector(
-                            vector.stream().mapToInt(i -> i).toArray());
-                    double distance = centroid.distance(currentVector);
-                    if (distance > bestDistance) {
-                        bestDistance = distance;
-                        bestSolution = solution;
-                    }
+            for (List<Integer> vector : vectors) {
+                BoiseArchive.Vector currentVector = new BoiseArchive.Vector(
+                        vector.stream().mapToInt(i -> i).toArray());
+                double distance = centroid.distance(currentVector);
+                if (distance > bestDistance) {
+                    bestDistance = distance;
+                    bestSolution = solution;
                 }
             }
         }
