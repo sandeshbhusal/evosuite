@@ -2,7 +2,6 @@ package org.evosuite.ga.boisega;
 
 import org.evosuite.PackageInfo;
 import org.evosuite.testcase.execution.ExecutionTracer;
-import org.evosuite.utils.LoggingUtils;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 
@@ -40,9 +39,6 @@ public class BoiseInstrumenter extends ClassVisitor {
 
                 // Check if the method call is a static call to Vtrace.capture();
                 if (name.equals("capture")) {
-                    // Dump stuff here.
-                    LoggingUtils.getEvoLogger().info("Captured variables' usages: {} and execution tracer is {}", capturedVariableIndices, ExecutionTracer.isEnabled());
-
                     // Push the instumentation tag
                     mv.visitLdcInsn(currentInstrumentationIdName);
 

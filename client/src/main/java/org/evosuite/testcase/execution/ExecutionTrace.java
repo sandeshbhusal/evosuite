@@ -359,7 +359,7 @@ public interface ExecutionTrace {
      */
     void instrumentationPassed(String instrumentationId, int[] vector);
 
-    List<List<Integer>> getHitInstrumentationData(String instrumentationID);
+    Set<List<Integer>> getHitInstrumentationData(String instrumentationID);
 
     /**
      * Finish all method calls. This is called when a method is not exited

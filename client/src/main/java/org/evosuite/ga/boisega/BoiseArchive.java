@@ -11,7 +11,12 @@ import org.evosuite.utils.LoggingUtils;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class BoiseArchive {
     public static class Vector {
@@ -49,7 +54,7 @@ public class BoiseArchive {
         }
     }
 
-    private final HashMap<String, List<Vector>> instrumentationCache = new HashMap<>();
+    private final HashMap<String, Set<Vector>> instrumentationCache = new HashMap<>();
 
     // Coverage map tracks what test cases cover a particular goal.
     private HashMap<BoiseFitnessFunction, HashSet<TestChromosome>> coverageMap;
@@ -71,7 +76,7 @@ public class BoiseArchive {
         ExecutionResult result = solution.getLastExecutionResult();
         ExecutionTrace trace = result.getTrace();
 
-        List<List<Integer>> dataCapturedInThisTrace = trace.getHitInstrumentationData(goal.getId());
+        Set<List<Integer>> dataCapturedInThisTrace = trace.getHitInstrumentationData(goal.getId());
 
         // Remove duplicates from captured data
         Set<Vector> uniqueCapturedData = new HashSet<>();
@@ -80,7 +85,7 @@ public class BoiseArchive {
         }
 
         // Check if the solution is already in the archive.
-        List<List<Integer>> capturedDataList = new ArrayList<>();
+        Set<List<Integer>> capturedDataList = new HashSet<>();
         for (Vector vector : uniqueCapturedData) {
             List<Integer> dataList = new ArrayList<>();
             for (int value : vector.values) {
@@ -92,7 +97,7 @@ public class BoiseArchive {
         if (!isSolutionAlreadyInArchive(goal, capturedDataList)) {
             solutions.add(solution);
             coverageMap.put(goal, solutions);
-            List<Vector> capturedData = instrumentationCache.getOrDefault(goal.getId(), new ArrayList<>());
+            Set<Vector> capturedData = instrumentationCache.getOrDefault(goal.getId(), new HashSet<>());
             capturedData.addAll(uniqueCapturedData);
             instrumentationCache.put(goal.getId(), capturedData);
 
@@ -105,9 +110,9 @@ public class BoiseArchive {
 
     private boolean isSolutionAlreadyInArchive(
             BoiseFitnessFunction goal,
-            List<List<Integer>> capturedData) {
+            Set<List<Integer>> capturedData) {
 
-        List<Vector> availableData = instrumentationCache.getOrDefault(goal.getId(), new ArrayList<>());
+        Set<Vector> availableData = instrumentationCache.getOrDefault(goal.getId(), new HashSet<>());
         for (List<Integer> captured : capturedData) {
             Vector capturedVector = new Vector(captured.stream().mapToInt(i -> i).toArray());
             for (Vector data : availableData) {
@@ -127,7 +132,7 @@ public class BoiseArchive {
 
     // Check if a specific goal is covered.
     public boolean isCovered(BoiseFitnessFunction ff) {
-        return instrumentationCache.getOrDefault(ff.getId(), new ArrayList<>()).size() >= Properties.MULTICOVER_TARGET;
+        return instrumentationCache.getOrDefault(ff.getId(), new HashSet<>()).size() >= Properties.MULTICOVER_TARGET;
         // return coverageMap.getOrDefault(ff, new HashSet<>()).size() >=
         // Properties.MULTICOVER_TARGET;
     }
@@ -212,5 +217,18 @@ public class BoiseArchive {
         }
 
         return suite;
+    }
+
+    public String summary() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Archive summary:\n");
+        for (BoiseFitnessFunction goal : coverageMap.keySet()) {
+            sb.append(goal).append(": datapoints = ")
+                    .append(instrumentationCache.getOrDefault(goal.getId(), new HashSet<>()).size()).append(" in ");
+            sb.append(coverageMap.get(goal).size()).append(" tests.\n");
+        }
+        sb.append("Remaining goals: ").append(remainingGoals.size()).append("\n");
+        sb.append("Covered goals: ").append(coverageMap.size() - remainingGoals.size()).append("\n");
+        return sb.toString();
     }
 }

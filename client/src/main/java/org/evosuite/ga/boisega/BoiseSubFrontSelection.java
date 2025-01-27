@@ -1,12 +1,12 @@
 package org.evosuite.ga.boisega;
 
 import org.evosuite.testcase.TestChromosome;
-import org.evosuite.testcase.TestFitnessFunction;
 import org.evosuite.testcase.execution.ExecutionResult;
 import org.evosuite.testcase.execution.ExecutionTrace;
 import org.evosuite.utils.LoggingUtils;
 
 import java.util.List;
+import java.util.Set;
 
 public class BoiseSubFrontSelection {
     List<TestChromosome> solutions;
@@ -34,20 +34,24 @@ public class BoiseSubFrontSelection {
             }
         }
 
-        // If the bestDiversity is 0.0 (i.e. all values in the vector are the same), then
+        // If the bestDiversity is 0.0 (i.e. all values in the vector are the same),
+        // then
         // we look for diversity within the cluster (list of solutions).
         if (bestDiversity == 0.0) {
-            LoggingUtils.getEvoLogger().info("All vector values are the same for {}: {}. Looking for diversity within the cluster.", goal.getId(), getVectorsForSolution(bestSolution));
+            LoggingUtils.getEvoLogger().info(
+                    "All vector values are the same for {}: {}. Looking for diversity within the cluster.",
+                    goal.getId(), getVectorsForSolution(bestSolution));
 
             BoiseArchive.Vector centroid = getCentroid();
             double bestDistance = -1.0;
 
             for (TestChromosome solution : solutions) {
                 ExecutionTrace trace = solution.getLastExecutionResult().getTrace();
-                List<List<Integer>> vectors = trace.getHitInstrumentationData(goal.getId());
+                Set<List<Integer>> vectors = trace.getHitInstrumentationData(goal.getId());
 
                 for (List<Integer> vector : vectors) {
-                    BoiseArchive.Vector currentVector = new BoiseArchive.Vector(vector.stream().mapToInt(i -> i).toArray());
+                    BoiseArchive.Vector currentVector = new BoiseArchive.Vector(
+                            vector.stream().mapToInt(i -> i).toArray());
                     double distance = centroid.distance(currentVector);
                     if (distance > bestDistance) {
                         bestDistance = distance;
@@ -69,7 +73,8 @@ public class BoiseSubFrontSelection {
         // Ehh. This is a super bad way to do this, but it's 4 am :)
         List<Integer> firstVector = null;
         try {
-            firstVector = solutions.get(0).getLastExecutionResult().getTrace().getHitInstrumentationData(goal.getId()).get(0);
+            firstVector = solutions.get(0).getLastExecutionResult().getTrace().getHitInstrumentationData(goal.getId())
+                    .iterator().next();
         } catch (Exception e) {
             return new BoiseArchive.Vector(new int[0]);
         }
@@ -78,7 +83,7 @@ public class BoiseSubFrontSelection {
 
         for (TestChromosome solution : solutions) {
             ExecutionResult result = solution.getLastExecutionResult();
-            List<List<Integer>> vectors = result.getTrace().getHitInstrumentationData(goal.getId());
+            Set<List<Integer>> vectors = result.getTrace().getHitInstrumentationData(goal.getId());
             for (List<Integer> vector : vectors) {
                 for (int i = 0; i < vector.size(); i++) {
                     centroid[i] += vector.get(i);
@@ -93,7 +98,7 @@ public class BoiseSubFrontSelection {
         return new BoiseArchive.Vector(centroid);
     }
 
-    public List<List<Integer>> getVectorsForSolution(TestChromosome solution) {
+    public Set<List<Integer>> getVectorsForSolution(TestChromosome solution) {
         return solution.getLastExecutionResult().getTrace().getHitInstrumentationData(goal.getId());
     }
 
@@ -103,7 +108,7 @@ public class BoiseSubFrontSelection {
     public double getInternalDiversity(TestChromosome solution) {
         double internalDiversity = 0.0;
         ExecutionResult result = solution.getLastExecutionResult();
-        List<List<Integer>> vectors = result.getTrace().getHitInstrumentationData(goal.getId());
+        Set<List<Integer>> vectors = result.getTrace().getHitInstrumentationData(goal.getId());
         for (List<Integer> vector : vectors) {
             double sum = 0.0;
 

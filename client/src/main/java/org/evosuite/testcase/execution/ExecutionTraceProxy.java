@@ -164,7 +164,7 @@ public class ExecutionTraceProxy implements ExecutionTrace, Cloneable {
     }
 
     @Override
-    public List<List<Integer>> getHitInstrumentationData(String instrumentationID) {
+    public Set<List<Integer>> getHitInstrumentationData(String instrumentationID) {
         copyOnWrite();
         return trace.getHitInstrumentationData(instrumentationID);
     }

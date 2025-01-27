@@ -226,11 +226,9 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
             LoggingUtils.getEvoLogger().info("-------------------------------------------------------------------");
             LoggingUtils.getEvoLogger().info("Iteration: {}", currentIteration);
             LoggingUtils.getEvoLogger().info("Population size: {}", population.size());
-            LoggingUtils.getEvoLogger().info("Remaining goals count: {} as: {}", archive.getRemainingGoals().size(),
-                    archive.getRemainingGoals());
+            LoggingUtils.getEvoLogger().info(archive.summary());
             this.evolve();
             this.currentIteration++;
-            LoggingUtils.getEvoLogger().info("Covered goals: {}", archive.getCoveredGoals().size());
             this.notifyIteration();
         }
 
