@@ -20,7 +20,6 @@
 package org.evosuite.testcase.execution;
 
 import org.evosuite.Properties;
-import org.evosuite.ga.boisega.Vector;
 import org.evosuite.Properties.Criterion;
 import org.evosuite.TestGenerationContext;
 import org.evosuite.coverage.branch.Branch;
@@ -32,6 +31,7 @@ import org.evosuite.coverage.dataflow.Use;
 import org.evosuite.setup.CallContext;
 import org.evosuite.statistics.RuntimeVariable;
 import org.evosuite.utils.ArrayUtil;
+import org.evosuite.utils.LoggingUtils;
 import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -218,8 +218,6 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
 
     public Map<String, Map<CallContext, Integer>> coveredMethodContext = Collections
             .synchronizedMap(new HashMap<>());
-
-    public Map<String, Set<Vector>> instrumentationData = Collections.synchronizedMap(new HashMap<>());
 
     // number of seen Definitions and uses for indexing purposes
     private int duCounter = 0;
@@ -510,7 +508,7 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
             coveredTrueContext.put(branch, new HashMap<>());
             coveredFalseContext.put(branch, new HashMap<>());
         }
-        //CallContext context = new CallContext(new Throwable().getStackTrace());
+        // CallContext context = new CallContext(new Throwable().getStackTrace());
         CallContext context = new CallContext(stack);
 
         if (!coveredPredicateContext.get(branch).containsKey(context)) {
@@ -724,7 +722,7 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
 
             if (!disableContext
                     && (Properties.INSTRUMENT_CONTEXT || ArrayUtil.contains(Properties.CRITERION, Criterion.IBRANCH)
-                    || ArrayUtil.contains(Properties.CRITERION, Criterion.CBRANCH))) {
+                            || ArrayUtil.contains(Properties.CRITERION, Criterion.CBRANCH))) {
                 updateMethodContextMaps(className, methodName, caller);
             }
         }
@@ -789,7 +787,8 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
         }
         if (stack == null) {
             return other.stack == null;
-        } else return stack.equals(other.stack);
+        } else
+            return stack.equals(other.stack);
     }
 
     /**
@@ -814,17 +813,27 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
             } else {
                 finishedCalls.add(stack.pop());
             }
-            //}
+            // }
         }
     }
 
+    public Map<String, Set<List<Integer>>> instrumentationData = Collections.synchronizedMap(new HashMap<>());
+
     @Override
-    public void instrumentationPassed(String instrumentationId, Vector vector) {
-        instrumentationData.get(instrumentationId).add(vector);
+    public void instrumentationPassed(String instrumentationId, List<Integer> vector) {
+        // LoggingUtils.getEvoLogger().info("Adding instrumentation data for {}: {} on trace {}",
+                // instrumentationId, vector, this.hashCode());
+        Set<List<Integer>> available = instrumentationData.getOrDefault(instrumentationId,
+                new HashSet<>());
+        available.add(vector);
+        instrumentationData.put(instrumentationId, available);
     }
 
     @Override
-    public Set<Vector> getHitInstrumentationData(String instrumentationID) {
+    public Set<List<Integer>> getHitInstrumentationData(String instrumentationID) {
+        // LoggingUtils.getEvoLogger().info("Returning instrumentation data for {}: {} on trace {}",
+                // instrumentationID,
+                // instrumentationData.getOrDefault(instrumentationID, new HashSet<>()), this.hashCode());
         return instrumentationData.getOrDefault(instrumentationID, new HashSet<>());
     }
 
@@ -895,7 +904,7 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
         Set<Integer> coveredLines = new HashSet<>();
         for (Entry<String, Map<String, Map<Integer, Integer>>> entry : coverage.entrySet()) {
             if ((entry.getKey().equals(className)) ||
-                    // is it a internal class of 'className' ?
+            // is it a internal class of 'className' ?
                     (entry.getKey().startsWith(className + "$"))) {
                 for (Map<Integer, Integer> methodentry : entry.getValue().values()) {
                     coveredLines.addAll(methodentry.keySet());
@@ -1251,7 +1260,7 @@ public class ExecutionTraceImpl implements ExecutionTrace, Cloneable {
      */
     @Override
     public ExecutionTrace getTraceInDUCounterRange(DefUse targetDU, boolean wantToCoverTargetDU, int duCounterStart,
-                                                   int duCounterEnd) {
+            int duCounterEnd) {
 
         if (duCounterStart > duCounterEnd) {
             throw new IllegalArgumentException("start has to be lesser or equal end");

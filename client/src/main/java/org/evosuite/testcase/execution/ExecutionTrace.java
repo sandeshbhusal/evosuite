@@ -358,9 +358,9 @@ public interface ExecutionTrace {
      * @param instrumentationId
      * @param vector
      */
-    void instrumentationPassed(String instrumentationId, Vector vector);
+    void instrumentationPassed(String instrumentationId, List<Integer> vector);
 
-    Set<Vector> getHitInstrumentationData(String instrumentationID);
+    Set<List<Integer>> getHitInstrumentationData(String instrumentationID);
 
     Set<String> getHitInstrumentationPoints();
 

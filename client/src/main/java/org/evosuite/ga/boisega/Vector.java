@@ -2,6 +2,7 @@ package org.evosuite.ga.boisega;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 
 public class Vector {
     int[] data;
@@ -10,6 +11,12 @@ public class Vector {
         if (data == null)
             throw new IllegalArgumentException("Data cannot be null");
         this.data = data.clone(); // Prevent external modification
+    }
+
+    public Vector(List<Integer> data) {
+        if (data == null)
+            throw new IllegalArgumentException("Data cannot be null");
+        this.data = data.stream().mapToInt(i -> i).toArray();
     }
 
     public int[] getData() {

@@ -22,7 +22,6 @@ package org.evosuite.testcase.execution;
 
 import org.evosuite.coverage.dataflow.DefUse;
 import org.evosuite.setup.CallContext;
-import org.evosuite.ga.boisega.Vector;
 import org.evosuite.testcase.execution.ExecutionTraceImpl.BranchEval;
 
 import java.util.HashMap;
@@ -159,13 +158,13 @@ public class ExecutionTraceProxy implements ExecutionTrace, Cloneable {
      * {@inheritDoc}
      */
     @Override
-    public void instrumentationPassed(String instrumentationId, Vector vector) {
+    public void instrumentationPassed(String instrumentationId, List<Integer> vector) {
         copyOnWrite();
         trace.instrumentationPassed(instrumentationId, vector);
     }
 
     @Override
-    public Set<Vector> getHitInstrumentationData(String instrumentationID) {
+    public Set<List<Integer>> getHitInstrumentationData(String instrumentationID) {
         copyOnWrite();
         return trace.getHitInstrumentationData(instrumentationID);
     }
