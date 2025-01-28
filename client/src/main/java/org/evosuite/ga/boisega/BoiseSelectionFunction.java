@@ -1,9 +1,11 @@
 package org.evosuite.ga.boisega;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 import org.evosuite.ga.Chromosome;
+import org.evosuite.ga.FitnessFunction;
 import org.evosuite.ga.operators.selection.SelectionFunction;
 
 public class BoiseSelectionFunction<T extends Chromosome<T>> extends SelectionFunction<T> {
@@ -14,8 +16,8 @@ public class BoiseSelectionFunction<T extends Chromosome<T>> extends SelectionFu
         throw new UnsupportedOperationException("Unimplemented method 'getIndex'");
     }
 
-    public static List<Integer> averageFitnessRanking(List<?> population) {
-        return null;
+    public static List<Integer> averageFitnessRanking(List<?> population, HashSet<FitnessFunction<?>> remainingGoals) {
+        return diversityRanking(population);
     }
 
     public static List<Integer> diversityRanking(List<?> population) {
