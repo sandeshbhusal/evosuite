@@ -18,7 +18,6 @@ import org.evosuite.ga.metaheuristics.GeneticAlgorithm;
 import org.evosuite.ga.operators.ranking.RankBasedPreferenceSorting;
 import org.evosuite.ga.operators.ranking.RankingFunction;
 import org.evosuite.testcase.TestChromosome;
-import org.evosuite.testcase.TestFitnessFunction;
 import org.evosuite.testcase.execution.ExecutionTrace;
 import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.utils.LoggingUtils;
@@ -78,13 +77,11 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
     public void breedNextGeneration() {
         ArrayList<T> nextGeneration = new ArrayList<>();
 
-        List<Integer> fitnessRankingForRemainingGoals = BoiseSelectionFunction.averageFitnessRanking(
-                (List<?>) this.population,
-                (HashSet<FitnessFunction<?>>) (HashSet<?>) this.remainingGoals);
-
+        // Since individuals are already sorted at the end of each iteration according to
+        // RankBasedPreferenceSorting, we can just take the first half of the population.
         for (int i = 0; i < this.population.size() / 2; i++) {
-            T first = this.population.get(fitnessRankingForRemainingGoals.get(i * 2)).clone();
-            T second = this.population.get(fitnessRankingForRemainingGoals.get(i * 2 + 1)).clone();
+            T first = this.population.get(i * 2).clone();
+            T second = this.population.get(i * 2 + 1).clone();
 
             if (Randomness.nextDouble() <= Properties.CROSSOVER_RATE) {
                 try {
@@ -157,11 +154,6 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
                 BoiseFitnessFunction boiseGoal = (BoiseFitnessFunction) goal;
                 String goalName = boiseGoal.getId();
 
-                // Get the vectors that were found on this goal.
-                ExecutionTrace trace = ((TestChromosome) chromosome).getLastExecutionResult().getTrace();
-                trace.getHitInstrumentationData(goalName).forEach(vector -> {
-                    this.instrumentedVectors.get(goalName).add(new Vector(vector));
-                });
 
             } else {
                 nonCoveringSolutions.add(chromosome);
@@ -176,24 +168,37 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
         for (FitnessFunction<T> goal : coveringSolutions.keySet()) {
             // We have to use a list here to avoid duplications while computing ranking.
             ArrayList<T> availableBestSolutions = new ArrayList<>(coveringSolutions.get(goal));
-            List<Integer> mostDiverseSolutionsIndexes = BoiseSelectionFunction.diversityRanking(availableBestSolutions);
+            BoiseDiversitySelectionFunction<T> selectionFunctionRanking = new BoiseDiversitySelectionFunction<T>(availableBestSolutions);
 
             // Pop the indexes and store them in the archive.
             int cutoffCount = (int) Math.ceil(cutoff * availableBestSolutions.size());
-            List<T> solutionsToRemove = new ArrayList<>();
-            for (int i = 0; i < cutoffCount; i++) {
-                int index = mostDiverseSolutionsIndexes.get(i);
+            HashSet<T> retainedSolutions = new HashSet<>();
+
+            for (int i = 0; i < availableBestSolutions.size(); i++) {
+                int index = selectionFunctionRanking.getNextIndex();
                 T solution = availableBestSolutions.get(index);
 
-                // Send this solution to the ExecutionCache. "Steal"ing phase.
-                BoiseFitnessFunction boiseGoal = (BoiseFitnessFunction) goal;
-                this.candidatesForSuite.get(boiseGoal.getId()).add((TestChromosome) solution);
+                if (i < cutoffCount) {
+                    // Send this solution to the ExecutionCache. "Steal"ing phase.
+                    BoiseFitnessFunction boiseGoal = (BoiseFitnessFunction) goal;
+                    String goalName = boiseGoal.getId();
+                    this.candidatesForSuite.get(goalName).add((TestChromosome) solution);
+
+                    // Get the vectors that were found on this goal.
+                    ExecutionTrace trace = ((TestChromosome) solution).getLastExecutionResult().getTrace();
+                    for (List<Integer> vector : trace.getHitInstrumentationData(goalName)) {
+                        this.instrumentedVectors.get(goalName).add(new Vector(vector));
+                    }
+                } else {
+                    // Retain this solution to send to next batch of population.
+                    retainedSolutions.add(solution);
+                }
+
             }
-            // At this point, we only retain the solutions that were not "diverse" enough.
-            availableBestSolutions.removeAll(solutionsToRemove);
 
             // Put the remaining solutions back in the coveringSolutions map.
-            coveringSolutions.put(goal, new HashSet<>(availableBestSolutions));
+            // These will be used to generate the next population.
+            coveringSolutions.put(goal, retainedSolutions);
         }
 
         // Step 4: For each best solution we have remaining in the
@@ -274,7 +279,7 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
             this.initializePopulation();
         }
 
-        while (this.remainingGoals.size() > 0 && this.currentIteration < 30) {
+        while (!this.remainingGoals.isEmpty()) {
             LoggingUtils.getEvoLogger().info("Iteration {}", this.currentIteration);
             LoggingUtils.getEvoLogger().info("Population size: {}", this.population.size());
             this.evolve();
@@ -284,6 +289,29 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
     }
 
     public TestSuiteChromosome generateTestSuite() {
-        return new TestSuiteChromosome();
+        TestSuiteChromosome testSuite = new TestSuiteChromosome();
+        for (String goal : this.candidatesForSuite.keySet()) {
+            Set<TestChromosome> candidates = this.candidatesForSuite.get(goal);
+            if (!candidates.isEmpty()) {
+                TestChromosome bestCandidate = candidates.iterator().next();
+                testSuite.addTestChromosome(bestCandidate);
+            }
+        }
+
+        // Also dump the entire instrumentation cache into .csv files per-goal.
+        for (String goal : this.candidatesForSuite.keySet()) {
+            Set<Vector> vectors = this.instrumentedVectors.get(goal);
+            StringBuilder sb = new StringBuilder();
+            for (Vector v: vectors) {
+                sb.append(v.toString()).append("\n");
+            }
+
+            try {
+                java.nio.file.Files.write(java.nio.file.Paths.get("vectors_" + goal + ".csv"), sb.toString().getBytes());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return testSuite;
     }
 }
