@@ -5,7 +5,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.evosuite.Properties;
 import org.evosuite.ga.Chromosome;
 import org.evosuite.ga.ChromosomeFactory;
@@ -16,6 +18,8 @@ import org.evosuite.ga.metaheuristics.GeneticAlgorithm;
 import org.evosuite.ga.operators.ranking.RankBasedPreferenceSorting;
 import org.evosuite.ga.operators.ranking.RankingFunction;
 import org.evosuite.testcase.TestChromosome;
+import org.evosuite.testcase.TestFitnessFunction;
+import org.evosuite.testcase.execution.ExecutionTrace;
 import org.evosuite.testsuite.TestSuiteChromosome;
 import org.evosuite.utils.LoggingUtils;
 import org.evosuite.utils.Randomness;
@@ -25,6 +29,7 @@ import org.evosuite.utils.Randomness;
 public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
     private final HashSet<FitnessFunction<T>> remainingGoals = new HashSet<>();
     private final HashMap<String, Set<TestChromosome>> candidatesForSuite = new HashMap<>();
+    private final HashMap<String, Set<Vector>> instrumentedVectors = new HashMap<>();
 
     public BoiseGA(ChromosomeFactory<T> factory) {
         super(factory);
@@ -33,6 +38,12 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
     @Override
     public void addFitnessFunction(FitnessFunction<T> goal) {
         this.remainingGoals.add(goal);
+        if (!candidatesForSuite.containsKey(((BoiseFitnessFunction) goal).getId())) {
+            this.candidatesForSuite.put(((BoiseFitnessFunction) goal).getId(), new HashSet<>());
+        }
+        if (!instrumentedVectors.containsKey(((BoiseFitnessFunction) goal).getId())) {
+            this.instrumentedVectors.put(((BoiseFitnessFunction) goal).getId(), new HashSet<>());
+        }
     }
 
     public List<T> initializeDistributedPopulation(int count) {
@@ -102,101 +113,124 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
 
     // Evaluate the given chromosomes on the remaining goals (only).
     public void evaluatePopulation() {
+        assert (!this.population.isEmpty()) : "Population is empty. Cannot evaluate fitness.";
+
         // Copy the population
         List<T> chromosomes = new ArrayList<>(this.population);
 
         // Clear the population. We will re-populate it with the best solutions.
         this.population.clear();
 
-        HashMap<FitnessFunction<T>, HashSet<T>> coverageMap = new HashMap<>();
-        HashSet<T> nonCoveringChromosomes = new HashSet<>();
-
-        for (T chromosome : chromosomes) {
-            boolean coversSomeGoal = false;
-            for (FitnessFunction<T> goal : this.remainingGoals) {
-                if (!coverageMap.containsKey(goal)) {
-                    coverageMap.put(goal, new HashSet<>());
-                }
-
-                // We clone, because "last execution result" is wiped when we re-run
-                // this chromosome on a different goal.
-                TestChromosome cloned_chromosome = (TestChromosome) chromosome.clone();
-                cloned_chromosome.clearCachedMutationResults();
-                cloned_chromosome.clearCachedResults();
-                cloned_chromosome.clearMutationHistory();
-
-                // This runs this cloned chromosome on this goal.
-                double goalFitness = goal.getFitness((T) cloned_chromosome);
-
-                // Regardless of the fitness, we need to store all execution results in
-                // the Execution cache, so that we do not re-run the same test case again
-                // on the same goal. This is important for performance reasons when we
-                // do a ranking of the solutions.
-                ExecutionCache.insert(((BoiseFitnessFunction) goal).getId(), cloned_chromosome);
-
-                if (goalFitness == 0.0) {
-                    // Goal is covered. Yayy!
-                    // Minimization comes later :)
-                    coversSomeGoal = true;
-                    coverageMap.get(goal).add((T) cloned_chromosome);
-                }
-            }
-
-            if (!coversSomeGoal) {
-                nonCoveringChromosomes.add(chromosome.clone());
-            }
-        }
-
-        LoggingUtils.getEvoLogger().info("Coverage map size : {}", coverageMap.values().size());
-        LoggingUtils.getEvoLogger().info("Non-covering chromosomes count : {}", nonCoveringChromosomes.size());
-
-        // Gather the candidate solutions, and rank them.
+        // Step 1: Generate a cartesian product of Goal x Chromosomes.
+        // TODO: There's probably better ways to do this, since each chromosome gets
+        // evaluated multiple times. Instead, we can make this better by executing each
+        // chromosome exactly once and finding out all goals covered by it.
+        HashSet<Pair<FitnessFunction<T>, T>> evaluationTargets = new HashSet<>();
         for (FitnessFunction<T> goal : this.remainingGoals) {
-            List<T> coveringChromosomes = new ArrayList<>(coverageMap.get(goal));
-            List<Integer> rankedChromosomes = BoiseSelectionFunction.diversityRanking(coveringChromosomes);
+            for (T chromosome : chromosomes) {
+                evaluationTargets.add(Pair.of(goal, chromosome.clone()));
+            }
+        }
 
-            // TODO: Change to user-configurable heuristic. For now, we select 50% of the
-            // ranked chromosomes to send to the final archive. The remaining 50% are sent
-            // to next generation.
-            double cutoff = 0.5;
-            for (int i = 0; i < rankedChromosomes.size(); i++) {
-                TestChromosome chr = (TestChromosome) coveringChromosomes.get(rankedChromosomes.get(i));
+        // Step 2: Evaluate the chromosomes on the goals.
+        HashMap<FitnessFunction<T>, HashSet<T>> coveringSolutions = new HashMap<>();
+        HashSet<T> nonCoveringSolutions = new HashSet<>();
 
-                if (i < rankedChromosomes.size() * cutoff) {
-                    // This goes to the archive directly.
-                    String key = ((BoiseFitnessFunction) goal).getId();
-                    if (!candidatesForSuite.containsKey(key)) {
-                        candidatesForSuite.put(key, new HashSet<>());
-                    }
-                    candidatesForSuite.get(key).add(chr);
+        for (Pair<FitnessFunction<T>, T> target : evaluationTargets) {
+            FitnessFunction<T> goal = target.getLeft();
+            T chromosome = target.getRight();
+
+            if (!coveringSolutions.containsKey(goal)) {
+                coveringSolutions.put(goal, new HashSet<>());
+            }
+
+            // Clear out the chromosome's cached results, so that we can get a fair
+            // evaluation. This is safe to cast as long as we don't work with testsuites.
+            ((TestChromosome) chromosome).clearCachedMutationResults();
+            ((TestChromosome) chromosome).clearCachedResults();
+            ((TestChromosome) chromosome).clearMutationHistory();
+
+            double fitness = goal.getFitness(chromosome);
+            if (fitness == 0.0) {
+                coveringSolutions.get(goal).add(chromosome);
+                // Get all vectors that were found on this goal during instrumentation.
+                BoiseFitnessFunction boiseGoal = (BoiseFitnessFunction) goal;
+                String goalName = boiseGoal.getId();
+
+                // Get the vectors that were found on this goal.
+                ExecutionTrace trace = ((TestChromosome) chromosome).getLastExecutionResult().getTrace();
+                trace.getHitInstrumentationData(goalName).forEach(vector -> {
+                    this.instrumentedVectors.get(goalName).add(new Vector(vector));
+                });
+
+            } else {
+                nonCoveringSolutions.add(chromosome);
+            }
+        }
+
+        // Step 3: For each covering solution, we retain a particular number of
+        // "diverse" solutions
+        // and send the remaining back to the population.
+        // TODO: Make this a heuristic.
+        double cutoff = 0.1; // Select 10% of the best solutions.
+        for (FitnessFunction<T> goal : coveringSolutions.keySet()) {
+            // We have to use a list here to avoid duplications while computing ranking.
+            ArrayList<T> availableBestSolutions = new ArrayList<>(coveringSolutions.get(goal));
+            List<Integer> mostDiverseSolutionsIndexes = BoiseSelectionFunction.diversityRanking(availableBestSolutions);
+
+            // Pop the indexes and store them in the archive.
+            int cutoffCount = (int) Math.ceil(cutoff * availableBestSolutions.size());
+            List<T> solutionsToRemove = new ArrayList<>();
+            for (int i = 0; i < cutoffCount; i++) {
+                int index = mostDiverseSolutionsIndexes.get(i);
+                T solution = availableBestSolutions.get(index);
+
+                // Send this solution to the ExecutionCache. "Steal"ing phase.
+                BoiseFitnessFunction boiseGoal = (BoiseFitnessFunction) goal;
+                this.candidatesForSuite.get(boiseGoal.getId()).add((TestChromosome) solution);
+            }
+            // At this point, we only retain the solutions that were not "diverse" enough.
+            availableBestSolutions.removeAll(solutionsToRemove);
+
+            // Put the remaining solutions back in the coveringSolutions map.
+            coveringSolutions.put(goal, new HashSet<>(availableBestSolutions));
+        }
+
+        // Step 4: For each best solution we have remaining in the
+        // availbaleBestSolutions, we
+        // compute another ranking assignment - RankBasedPreferenceSorting, which
+        // computers the closeness
+        // of the solution to the goal.
+        RankingFunction<T> rankingFunction = new RankBasedPreferenceSorting<>();
+        List<T> flattenedList = coveringSolutions.values().stream()
+                .flatMap(HashSet::stream)
+                .collect(Collectors.toList());
+
+        rankingFunction.computeRankingAssignment(flattenedList, this.remainingGoals);
+
+        // With this, we find the subfronts, and add chromosomes from the subfronts to
+        // the population until
+        // population size is met, or we run out of solutions.
+        int subfrontIndex = 0;
+        while (subfrontIndex < rankingFunction.getNumberOfSubfronts()) {
+            List<T> subfront = rankingFunction.getSubfront(subfrontIndex);
+            for (T solution : subfront) {
+                if (this.population.size() < Properties.POPULATION) {
+                    this.population.add(solution);
                 } else {
-                    // This goes to the next generation.
-                    this.population.add(coveringChromosomes.get(rankedChromosomes.get(i)));
+                    break;
                 }
             }
+            subfrontIndex += 1;
         }
 
-        LoggingUtils.getEvoLogger().info("Candidates for suite size : {}", candidatesForSuite.size());
-
-        // For the rest of the non-covering chromosomes, we follow a similar suite as
-        // MOSA, i.e. RankBasedPreferenceSorting.
-        RankingFunction<T> rankingFunction = new RankBasedPreferenceSorting<T>();
-        rankingFunction.computeRankingAssignment(chromosomes, remainingGoals);
-
-        int currentSubFrontIndex = 0;
-        while (currentSubFrontIndex < rankingFunction.getNumberOfSubfronts()) {
-            List<T> currentSubFront = rankingFunction.getSubfront(currentSubFrontIndex);
-            if (this.population.size() + currentSubFront.size() <= Properties.POPULATION) {
-                this.population.addAll(currentSubFront);
-            } else {
-                break;
-            }
-        }
-
-        // Is the population full? If not, we need to add some non-covering chromosomes.
-        int remaining = Properties.POPULATION - this.population.size();
-        if (remaining > 0) {
-            this.population.addAll(initializeDistributedPopulation(remaining));
+        // Step 5: If the population is still underfull, we add more chromosomes
+        // distributed uniformly
+        // across the remaining goals.
+        if (this.population.size() < Properties.POPULATION) {
+            List<T> distributedPopulation = initializeDistributedPopulation(
+                    Properties.POPULATION - this.population.size());
+            this.population.addAll(distributedPopulation);
         }
     }
 
@@ -221,11 +255,13 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
 
         for (FitnessFunction<T> goal : this.remainingGoals) {
             BoiseFitnessFunction boiseGoal = (BoiseFitnessFunction) goal;
-            int count = ExecutionCache.count(boiseGoal.getId());
+            String goalName = boiseGoal.getId();
+            int count = this.instrumentedVectors.get(goalName).size();
+
             LoggingUtils.getEvoLogger().info("Goal {} has {} entries", goal, count);
             if (count < Properties.MULTICOVER_TARGET) {
                 nextGoals.add(goal);
-            } 
+            }
         }
 
         this.remainingGoals.clear();
@@ -241,7 +277,6 @@ public class BoiseGA<T extends Chromosome<T>> extends GeneticAlgorithm<T> {
         while (this.remainingGoals.size() > 0 && this.currentIteration < 30) {
             LoggingUtils.getEvoLogger().info("Iteration {}", this.currentIteration);
             LoggingUtils.getEvoLogger().info("Population size: {}", this.population.size());
-            // LoggingUtils.getEvoLogger().info("{} entries in cache", ExecutionCache.getNumEntries());
             this.evolve();
 
             this.currentIteration += 1;
